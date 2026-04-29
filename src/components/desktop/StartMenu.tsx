@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { useDesktopStore } from '@/store/desktopStore';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Sun, Moon, Power, Image as ImageIcon, Search, Settings as SettingsIcon, Plus, Globe } from 'lucide-react';
@@ -24,6 +25,7 @@ export function StartMenu({ onClose, onAddBookmark }: Props) {
   const { items, settings, setSettings } = useDesktopStore();
   const [query, setQuery] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
+  const [wallpaperUrl, setWallpaperUrl] = useState('');
 
   const bookmarks = items.filter(i => i.kind === 'bookmark');
   const filtered = bookmarks.filter(b =>
@@ -132,11 +134,35 @@ export function StartMenu({ onClose, onAddBookmark }: Props) {
             ))}
           </div>
           <input ref={fileRef} type="file" accept="image/*" hidden onChange={handleUpload} />
+          <div className="mt-2 flex gap-1">
+            <Input
+              placeholder="Wallpaper image URL"
+              value={wallpaperUrl}
+              onChange={(e) => setWallpaperUrl(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  if (wallpaperUrl.trim()) { setSettings({ wallpaper: wallpaperUrl.trim() }); setWallpaperUrl(''); }
+                }
+              }}
+              className="h-8 text-xs flex-1"
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-8 text-xs px-2"
+              disabled={!wallpaperUrl.trim()}
+              onClick={() => { setSettings({ wallpaper: wallpaperUrl.trim() }); setWallpaperUrl(''); }}
+            >
+              Set
+            </Button>
+          </div>
           <Button
             type="button"
             variant="outline"
             size="sm"
-            className="w-full mt-2 h-8 text-xs"
+            className="w-full mt-1.5 h-8 text-xs"
             onClick={() => fileRef.current?.click()}
           >
             Upload custom

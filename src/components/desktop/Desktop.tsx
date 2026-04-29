@@ -7,7 +7,7 @@ import { Taskbar } from './Taskbar';
 import { StartMenu } from './StartMenu';
 import { FolderWindow } from './FolderWindow';
 import { DesktopItem, GRID, ICON_W, ICON_H } from '@/types/desktop';
-import { ExternalLink, Pencil, Trash2, Plus, RefreshCw, FolderPlus, Image as ImageIcon, FolderInput } from 'lucide-react';
+import { ExternalLink, Pencil, Trash2, Plus, RefreshCw, FolderPlus, Image as ImageIcon, FolderInput, Link2 } from 'lucide-react';
 
 type Menu =
   | { type: 'icon'; x: number; y: number; iconId: string }
@@ -262,10 +262,22 @@ export function Desktop() {
 
     if (!isFolder) {
       out.push({
-        label: 'Change icon…',
+        label: 'Upload icon…',
         icon: <ImageIcon className="w-4 h-4" />,
         disabled: multi,
         onClick: () => setIconUploadId(id),
+      });
+      out.push({
+        label: 'Set icon from URL…',
+        icon: <Link2 className="w-4 h-4" />,
+        disabled: multi,
+        onClick: () => {
+          const current = b.customIcon && !b.customIcon.startsWith('data:') ? b.customIcon : '';
+          const url = window.prompt('Enter image URL for the icon:', current);
+          if (url === null) return;
+          const trimmed = url.trim();
+          setCustomIcon(id, trimmed || null);
+        },
       });
       if (b.customIcon) {
         out.push({

@@ -63,24 +63,34 @@ export function AddBookmarkDialog({ open, onClose, onAdd }: Props) {
           <DialogDescription>Add a website to your desktop. The favicon is fetched automatically.</DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="space-y-4">
-          <div className="flex items-center gap-3">
-            <div className="w-14 h-14 flex items-center justify-center rounded bg-muted overflow-hidden border border-border">
-              {previewIcon ? (
-                <img src={previewIcon} alt="" className="w-10 h-10 object-contain" />
-              ) : (
-                <Globe className="w-7 h-7 text-muted-foreground" />
-              )}
-            </div>
-            <div className="flex flex-col gap-1">
-              <input ref={fileRef} type="file" accept="image/*" hidden onChange={handleFile} />
-              <Button type="button" variant="outline" size="sm" onClick={() => fileRef.current?.click()}>
-                <Upload className="w-3.5 h-3.5 mr-1.5" /> Upload icon
-              </Button>
-              {customIcon && (
-                <Button type="button" variant="ghost" size="sm" onClick={() => setCustomIcon(null)}>
-                  <X className="w-3.5 h-3.5 mr-1.5" /> Use favicon
-                </Button>
-              )}
+          <div className="space-y-2">
+            <div className="flex items-center gap-3">
+              <div className="w-14 h-14 flex items-center justify-center rounded bg-muted overflow-hidden border border-border shrink-0">
+                {previewIcon ? (
+                  <img src={previewIcon} alt="" className="w-10 h-10 object-contain" />
+                ) : (
+                  <Globe className="w-7 h-7 text-muted-foreground" />
+                )}
+              </div>
+              <div className="flex-1 space-y-1">
+                <input ref={fileRef} type="file" accept="image/*" hidden onChange={handleFile} />
+                <Input
+                  placeholder="Paste image URL (optional)"
+                  value={customIcon && !customIcon.startsWith('data:') ? customIcon : ''}
+                  onChange={(e) => setCustomIcon(e.target.value || null)}
+                  className="h-8 text-xs"
+                />
+                <div className="flex gap-1">
+                  <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={() => fileRef.current?.click()}>
+                    <Upload className="w-3 h-3 mr-1" /> Upload
+                  </Button>
+                  {customIcon && (
+                    <Button type="button" variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setCustomIcon(null)}>
+                      <X className="w-3 h-3 mr-1" /> Reset
+                    </Button>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
           <div className="space-y-2">
