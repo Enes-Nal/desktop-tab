@@ -2,6 +2,16 @@ import { FsNode, ROOT_DOCUMENTS, ROOT_PICTURES, ROOT_DESKTOP } from '@/types/fs'
 import { useWMStore } from '@/store/wmStore';
 import { useFsStore } from '@/store/fsStore';
 
+function openExternalUrl(url: string) {
+  const opened = window.open(url, '_blank');
+  if (opened) {
+    opened.opener = null;
+    return;
+  }
+
+  window.location.assign(url);
+}
+
 // Open a node with the appropriate app
 export function activateNode(node: FsNode) {
   const wm = useWMStore.getState();
@@ -15,7 +25,7 @@ export function activateNode(node: FsNode) {
     return;
   }
   if (node.kind === 'bookmark' && node.url) {
-    window.open(node.url, '_blank', 'noopener');
+    openExternalUrl(node.url);
     return;
   }
   if (node.kind === 'file') {
