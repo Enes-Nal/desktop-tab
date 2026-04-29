@@ -1,7 +1,8 @@
 import { Clock } from './Clock';
-import { Search, LayoutGrid } from 'lucide-react';
+import { Search, LayoutGrid, FileText } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { useNotesStore } from '@/store/notesStore';
 
 interface Props {
   onStartClick: () => void;
@@ -10,13 +11,14 @@ interface Props {
 }
 
 export function Taskbar({ onStartClick, startOpen, onAddClick }: Props) {
+  const { windowOpen: notepadOpen, openWindow: openNotepad, closeWindow: closeNotepad } = useNotesStore();
+
   return (
     <div
       className="fixed bottom-0 left-0 right-0 h-12 z-30 glass-taskbar flex items-center px-1 gap-1"
       onContextMenu={(e) => e.preventDefault()}
       onMouseDown={(e) => e.stopPropagation()}
     >
-      {/* Start button */}
       <button
         onClick={onStartClick}
         className={cn(
@@ -29,13 +31,24 @@ export function Taskbar({ onStartClick, startOpen, onAddClick }: Props) {
         <WindowsLogo className="w-5 h-5" />
       </button>
 
-      {/* Search */}
       <div className="hidden sm:flex items-center gap-2 h-9 px-3 rounded-sm bg-background/40 border border-border/50 w-64 cursor-text"
         onClick={onStartClick}
       >
         <Search className="w-4 h-4 text-muted-foreground" />
         <span className="text-xs text-muted-foreground">Type here to search</span>
       </div>
+
+      <button
+        onClick={() => (notepadOpen ? closeNotepad() : openNotepad())}
+        className={cn(
+          'h-9 px-2 flex items-center gap-1.5 rounded-sm text-xs transition-colors',
+          notepadOpen ? 'bg-primary/30' : 'hover:bg-foreground/10'
+        )}
+        title="Notepad"
+      >
+        <FileText className="w-4 h-4" />
+        <span className="hidden md:inline">Notepad</span>
+      </button>
 
       <div className="flex-1" />
 

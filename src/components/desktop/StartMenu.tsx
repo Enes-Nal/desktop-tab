@@ -4,7 +4,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { Sun, Moon, Power, Image as ImageIcon, Search, Settings as SettingsIcon, Plus, Globe } from 'lucide-react';
+import { Sun, Moon, Power, Image as ImageIcon, Search, Settings as SettingsIcon, Plus, Globe, Download, Upload, FileText } from 'lucide-react';
+import { useNotesStore } from '@/store/notesStore';
+import { toast } from 'sonner';
 import wallpaperDefault from '@/assets/wallpaper-default.jpg';
 import wallpaperDark from '@/assets/wallpaper-dark.jpg';
 import wallpaperLight from '@/assets/wallpaper-light.jpg';
@@ -22,10 +24,41 @@ const PRESETS = [
 ];
 
 export function StartMenu({ onClose, onAddBookmark }: Props) {
-  const { items, settings, setSettings } = useDesktopStore();
+  const { items, settings, setSettings, exportItems, importItems } = useDesktopStore();
+  const openNotepad = useNotesStore(s => s.openWindow);
   const [query, setQuery] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
+  const importRef = useRef<HTMLInputElement>(null);
   const [wallpaperUrl, setWallpaperUrl] = useState('');
+
+  const handleExport = () => {
+    const json = exportItems();
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `bookmarks-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success('Bookmarks exported');
+  };
+
+  const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const text = reader.result as string;
+      const replace = window.confirm(
+        'Replace all current bookmarks?\n\nClick OK to REPLACE, or Cancel to MERGE with existing items.'
+      );
+      const result = importItems(text, replace ? 'replace' : 'merge');
+      if (result.ok) toast.success(`Imported ${result.count} item${result.count === 1 ? '' : 's'}`);
+      else toast.error(result.error || 'Import failed');
+    };
+    reader.readAsText(file);
+  };
 
   const bookmarks = items.filter(i => i.kind === 'bookmark');
   const filtered = bookmarks.filter(b =>
@@ -168,15 +201,35 @@ export function StartMenu({ onClose, onAddBookmark }: Props) {
             Upload custom
           </Button>
         </div>
+
+        {/* Bookmark backup */}
+        <div className="pt-1">
+          <Label className="text-xs flex items-center gap-2 mb-2">
+            <Download className="w-3.5 h-3.5" /> Bookmark backup
+          </Label>
+          <input ref={importRef} type="file" accept="application/json,.json" hidden onChange={handleImport} />
+          <div className="flex gap-1.5">
+            <Button variant="outline" size="sm" className="flex-1 h-8 text-xs gap-1" onClick={handleExport}>
+              <Download className="w-3 h-3" /> Export
+            </Button>
+            <Button variant="outline" size="sm" className="flex-1 h-8 text-xs gap-1" onClick={() => importRef.current?.click()}>
+              <Upload className="w-3 h-3" /> Import
+            </Button>
+          </div>
+        </div>
       </div>
 
       {/* Footer actions */}
       <div className="border-t border-border/50 p-2 flex items-center justify-between">
-        <Button variant="ghost" size="sm" onClick={onAddBookmark} className="text-xs gap-1.5">
-          <Plus className="w-4 h-4" /> New bookmark
-        </Button>
         <div className="flex gap-1">
-          <Button variant="ghost" size="icon" className="h-8 w-8" title="Settings"><SettingsIcon className="w-4 h-4" /></Button>
+          <Button variant="ghost" size="sm" onClick={onAddBookmark} className="text-xs gap-1.5">
+            <Plus className="w-4 h-4" /> Bookmark
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => { openNotepad(); onClose(); }} className="text-xs gap-1.5">
+            <FileText className="w-4 h-4" /> Notepad
+          </Button>
+        </div>
+        <div className="flex gap-1">
           <Button variant="ghost" size="icon" className="h-8 w-8" title="Close" onClick={onClose}><Power className="w-4 h-4" /></Button>
         </div>
       </div>

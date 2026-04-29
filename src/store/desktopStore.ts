@@ -23,6 +23,9 @@ interface DesktopState {
 
   openFolder: (id: string | null) => void;
   setSettings: (patch: Partial<DesktopSettings>) => void;
+
+  exportItems: () => string;
+  importItems: (json: string, mode: 'merge' | 'replace') => { ok: boolean; count: number; error?: string };
 }
 
 const findEmptySpot = (items: DesktopItem[], parentId: string | null): { x: number; y: number } => {
@@ -161,6 +164,54 @@ export const useDesktopStore = create<DesktopState>()(
 
       openFolder: (id) => set({ openFolderId: id }),
       setSettings: (patch) => set({ settings: { ...get().settings, ...patch } }),
+
+      exportItems: () => {
+        const payload = {
+          version: 2,
+          exportedAt: new Date().toISOString(),
+          items: get().items,
+        };
+        return JSON.stringify(payload, null, 2);
+      },
+
+      importItems: (json, mode) => {
+        try {
+          const parsed = JSON.parse(json);
+          const incoming: DesktopItem[] = Array.isArray(parsed)
+            ? parsed
+            : Array.isArray(parsed?.items)
+              ? parsed.items
+              : [];
+          if (!incoming.length) return { ok: false, count: 0, error: 'No items found in file' };
+
+          const idMap = new Map<string, string>();
+          const valid = incoming.filter((it: DesktopItem) =>
+            it && typeof it.title === 'string' && (it.kind === 'bookmark' || it.kind === 'folder')
+          );
+          valid.forEach(it => idMap.set(it.id, crypto.randomUUID()));
+          const remapped: DesktopItem[] = valid.map(it => ({
+            ...it,
+            id: idMap.get(it.id)!,
+            parentId: it.parentId ? (idMap.get(it.parentId) ?? null) : null,
+            createdAt: it.createdAt || Date.now(),
+          }));
+
+          const base = mode === 'replace' ? [] : get().items;
+          const finalItems = [...base];
+          for (const it of remapped) {
+            if (it.parentId === null && mode === 'merge') {
+              const spot = findEmptySpot(finalItems, null);
+              finalItems.push({ ...it, x: spot.x, y: spot.y });
+            } else {
+              finalItems.push(it);
+            }
+          }
+          set({ items: finalItems, selectedIds: [] });
+          return { ok: true, count: remapped.length };
+        } catch (e) {
+          return { ok: false, count: 0, error: (e as Error).message };
+        }
+      },
     }),
     {
       name: 'win10-desktop-store',

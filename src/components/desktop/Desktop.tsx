@@ -6,6 +6,8 @@ import { AddBookmarkDialog } from './AddBookmarkDialog';
 import { Taskbar } from './Taskbar';
 import { StartMenu } from './StartMenu';
 import { FolderWindow } from './FolderWindow';
+import { NotepadWindow } from './NotepadWindow';
+import { IconUrlDialog } from './IconUrlDialog';
 import { DesktopItem, GRID, ICON_W, ICON_H } from '@/types/desktop';
 import { ExternalLink, Pencil, Trash2, Plus, RefreshCw, FolderPlus, Image as ImageIcon, FolderInput, Link2 } from 'lucide-react';
 
@@ -32,6 +34,7 @@ export function Desktop() {
   const [startOpen, setStartOpen] = useState(false);
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
   const [iconUploadId, setIconUploadId] = useState<string | null>(null);
+  const [iconUrlDialogId, setIconUrlDialogId] = useState<string | null>(null);
   const iconFileRef = useRef<HTMLInputElement>(null);
 
   const drag = useRef<{
@@ -271,13 +274,7 @@ export function Desktop() {
         label: 'Set icon from URL…',
         icon: <Link2 className="w-4 h-4" />,
         disabled: multi,
-        onClick: () => {
-          const current = b.customIcon && !b.customIcon.startsWith('data:') ? b.customIcon : '';
-          const url = window.prompt('Enter image URL for the icon:', current);
-          if (url === null) return;
-          const trimmed = url.trim();
-          setCustomIcon(id, trimmed || null);
-        },
+        onClick: () => setIconUrlDialogId(id),
       });
       if (b.customIcon) {
         out.push({
@@ -421,6 +418,19 @@ export function Desktop() {
         onClose={() => setDialogOpen(false)}
         onAdd={(d) => addBookmark(d)}
       />
+
+      <IconUrlDialog
+        open={iconUrlDialogId !== null}
+        initialUrl={iconUrlDialogId ? (() => {
+          const it = items.find(i => i.id === iconUrlDialogId);
+          return it?.customIcon && !it.customIcon.startsWith('data:') ? it.customIcon : '';
+        })() : ''}
+        itemTitle={iconUrlDialogId ? items.find(i => i.id === iconUrlDialogId)?.title : undefined}
+        onClose={() => setIconUrlDialogId(null)}
+        onSave={(url) => { if (iconUrlDialogId) setCustomIcon(iconUrlDialogId, url); }}
+      />
+
+      <NotepadWindow />
 
       <input
         ref={iconFileRef}
