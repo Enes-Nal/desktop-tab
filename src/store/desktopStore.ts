@@ -66,7 +66,9 @@ export const useDesktopStore = create<DesktopState>()(
         bookmarks: get().bookmarks.map(b => b.id === id ? { ...b, title } : b),
       }),
       moveBookmarks: (deltas) => {
-        const map = new Map(deltas.map(d => [d.id, d]));
+        const map = new Map<string, { id: string; x: number; y: number }>(
+          deltas.map(d => [d.id, d])
+        );
         set({
           bookmarks: get().bookmarks.map(b => {
             const d = map.get(b.id);
