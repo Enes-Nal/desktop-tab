@@ -87,7 +87,7 @@ export function DesktopIcon({
             if (e.key === 'Enter') onRenameSubmit(item.id, editValue.trim() || item.title);
             if (e.key === 'Escape') onRenameCancel();
           }}
-          onBlur={() => onRenameSubmit(item.id, editValue.trim() || item.title)}
+          onBlur={() => onRenameSubmit(item.id, editValue)}
           className="w-full text-[11px] text-center px-1 bg-background text-foreground border border-primary outline-none rounded-sm"
         />
       ) : (
