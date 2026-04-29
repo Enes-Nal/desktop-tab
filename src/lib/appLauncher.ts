@@ -3,12 +3,6 @@ import { useWMStore } from '@/store/wmStore';
 import { useFsStore } from '@/store/fsStore';
 
 function openExternalUrl(url: string) {
-  const opened = window.open(url, '_blank');
-  if (opened) {
-    opened.opener = null;
-    return;
-  }
-
   window.location.assign(url);
 }
 

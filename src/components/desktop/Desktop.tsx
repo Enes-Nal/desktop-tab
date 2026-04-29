@@ -256,7 +256,7 @@ export function Desktop() {
 
     const out: MenuItem[] = [
       {
-        label: multi ? `Open ${selectedIds.length} items` : isFolder ? 'Open' : isBookmark ? 'Open in new tab' : 'Open',
+        label: multi ? `Open ${selectedIds.length} items` : 'Open',
         icon: <ExternalLink className="w-4 h-4" />,
         onClick: () => {
           if (multi) nodes.filter(x => selectedIds.includes(x.id)).forEach(activateNode);
