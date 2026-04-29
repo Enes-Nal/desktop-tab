@@ -21,13 +21,14 @@ const PRESETS = [
 ];
 
 export function StartMenu({ onClose, onAddBookmark }: Props) {
-  const { bookmarks, settings, setSettings } = useDesktopStore();
+  const { items, settings, setSettings } = useDesktopStore();
   const [query, setQuery] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
 
+  const bookmarks = items.filter(i => i.kind === 'bookmark');
   const filtered = bookmarks.filter(b =>
     b.title.toLowerCase().includes(query.toLowerCase()) ||
-    b.url.toLowerCase().includes(query.toLowerCase())
+    (b.url ?? '').toLowerCase().includes(query.toLowerCase())
   );
 
   const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
