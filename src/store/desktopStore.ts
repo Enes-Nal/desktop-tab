@@ -23,6 +23,9 @@ interface DesktopState {
 
   openFolder: (id: string | null) => void;
   setSettings: (patch: Partial<DesktopSettings>) => void;
+
+  exportItems: () => string;
+  importItems: (json: string, mode: 'merge' | 'replace') => { ok: boolean; count: number; error?: string };
 }
 
 const findEmptySpot = (items: DesktopItem[], parentId: string | null): { x: number; y: number } => {
