@@ -24,10 +24,41 @@ const PRESETS = [
 ];
 
 export function StartMenu({ onClose, onAddBookmark }: Props) {
-  const { items, settings, setSettings } = useDesktopStore();
+  const { items, settings, setSettings, exportItems, importItems } = useDesktopStore();
+  const openNotepad = useNotesStore(s => s.openWindow);
   const [query, setQuery] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
+  const importRef = useRef<HTMLInputElement>(null);
   const [wallpaperUrl, setWallpaperUrl] = useState('');
+
+  const handleExport = () => {
+    const json = exportItems();
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `bookmarks-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success('Bookmarks exported');
+  };
+
+  const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const text = reader.result as string;
+      const replace = window.confirm(
+        'Replace all current bookmarks?\n\nClick OK to REPLACE, or Cancel to MERGE with existing items.'
+      );
+      const result = importItems(text, replace ? 'replace' : 'merge');
+      if (result.ok) toast.success(`Imported ${result.count} item${result.count === 1 ? '' : 's'}`);
+      else toast.error(result.error || 'Import failed');
+    };
+    reader.readAsText(file);
+  };
 
   const bookmarks = items.filter(i => i.kind === 'bookmark');
   const filtered = bookmarks.filter(b =>
