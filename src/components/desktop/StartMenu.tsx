@@ -6,7 +6,7 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import {
   Sun, Moon, Power, Image as ImageIcon, Search, Plus, Globe,
-  Download, Upload, FileText, FolderOpen, Shuffle, X,
+  Download, Upload, FileText, FolderOpen, Shuffle, X, Type,
 } from 'lucide-react';
 import { useNotesStore } from '@/store/notesStore';
 import { openFileExplorerAt } from '@/lib/appLauncher';
@@ -17,6 +17,7 @@ import wallpaperDark from '@/assets/wallpaper-dark.jpg';
 import wallpaperLight from '@/assets/wallpaper-light.jpg';
 import { cn } from '@/lib/utils';
 import { normalizeWallpaperUrl } from '@/lib/wallpaper';
+import { GOOGLE_FONTS } from '@/lib/googleFonts';
 
 interface Props {
   onClose: () => void;
@@ -40,6 +41,7 @@ export function StartMenu({ onClose, onAddBookmark }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const importRef = useRef<HTMLInputElement>(null);
   const [wallpaperUrl, setWallpaperUrl] = useState('');
+  const [fontQuery, setFontQuery] = useState('');
 
   const handleExport = () => {
     const json = exportItems();
@@ -197,6 +199,57 @@ export function StartMenu({ onClose, onAddBookmark }: Props) {
             checked={settings.snapToGrid}
             onCheckedChange={(v) => setSettings({ snapToGrid: v })}
           />
+        </div>
+        <div>
+          <Label className="text-xs flex items-center gap-2 mb-2">
+            <Type className="w-3.5 h-3.5" /> Font
+          </Label>
+          <div className="flex gap-1">
+            <Input
+              list="google-fonts"
+              placeholder="Search Google Fonts"
+              value={fontQuery || (settings.fontFamily === 'system' ? '' : settings.fontFamily)}
+              onChange={(e) => setFontQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key !== 'Enter') return;
+                e.preventDefault();
+                const next = fontQuery.trim();
+                if (next && GOOGLE_FONTS.includes(next as typeof GOOGLE_FONTS[number])) {
+                  setSettings({ fontFamily: next });
+                }
+              }}
+              className="h-8 text-xs flex-1"
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-8 text-xs px-2"
+              disabled={!fontQuery.trim() || !GOOGLE_FONTS.includes(fontQuery.trim() as typeof GOOGLE_FONTS[number])}
+              onClick={() => setSettings({ fontFamily: fontQuery.trim() })}
+            >
+              Set
+            </Button>
+          </div>
+          <datalist id="google-fonts">
+            {GOOGLE_FONTS.map(font => <option key={font} value={font} />)}
+          </datalist>
+          <div className="mt-1.5 flex items-center justify-between gap-2">
+            <div className="min-w-0 truncate text-[11px] text-muted-foreground">
+              {settings.fontFamily === 'system' ? 'System default' : settings.fontFamily}
+            </div>
+            {settings.fontFamily !== 'system' && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2 text-xs"
+                onClick={() => { setSettings({ fontFamily: 'system' }); setFontQuery(''); }}
+              >
+                Reset
+              </Button>
+            )}
+          </div>
         </div>
         <div>
           <Label className="text-xs flex items-center gap-2 mb-2">

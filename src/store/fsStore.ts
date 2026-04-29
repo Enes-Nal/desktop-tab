@@ -123,6 +123,7 @@ const touch = (n: FsNode): FsNode => ({ ...n, modifiedAt: Date.now() });
 
 const defaultSettings = (): DesktopSettings => ({
   theme: 'dark',
+  fontFamily: 'system',
   wallpaper: wallpaperDefault,
   wallpapers: [wallpaperDefault],
   wallpaperShuffleEnabled: false,
@@ -139,6 +140,7 @@ const normalizeSettings = (settings: Partial<DesktopSettings> | null | undefined
     ...defaults,
     ...settings,
     wallpaper,
+    fontFamily: settings?.fontFamily || defaults.fontFamily,
     wallpapers: wallpapers.length ? wallpapers : [wallpaper],
     wallpaperShuffleMinutes: Math.max(1, settings?.wallpaperShuffleMinutes ?? defaults.wallpaperShuffleMinutes),
     wallpaperLastShuffleAt: settings?.wallpaperLastShuffleAt ?? defaults.wallpaperLastShuffleAt,

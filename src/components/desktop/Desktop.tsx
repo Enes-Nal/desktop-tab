@@ -11,6 +11,7 @@ import { IconUrlDialog } from './IconUrlDialog';
 import { WindowHost } from './WindowHost';
 import { FsNode, GRID, ICON_W, ICON_H, ROOT_DESKTOP, isRoot } from '@/types/fs';
 import { activateNode, openFileExplorerAt } from '@/lib/appLauncher';
+import { applyDesktopFont } from '@/lib/font';
 import {
   ExternalLink, Pencil, Trash2, Plus, RefreshCw, FolderPlus,
   Image as ImageIcon, FolderInput, Link2, FileText as FileTextIcon, FolderOpen,
@@ -57,6 +58,10 @@ export function Desktop() {
   useEffect(() => {
     document.documentElement.classList.toggle('dark', settings.theme === 'dark');
   }, [settings.theme]);
+
+  useEffect(() => {
+    applyDesktopFont(settings.fontFamily);
+  }, [settings.fontFamily]);
 
   useEffect(() => {
     if (!settings.wallpaperShuffleEnabled || settings.wallpapers.length < 2) return;
