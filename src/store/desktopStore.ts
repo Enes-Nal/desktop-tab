@@ -9,7 +9,7 @@ interface DesktopState {
   openFolderId: string | null; // currently opened folder window
   settings: DesktopSettings;
 
-  addBookmark: (b: { title: string; url: string; favicon?: string; parentId?: string | null; x?: number; y?: number }) => void;
+  addBookmark: (b: { title: string; url: string; favicon?: string; customIcon?: string; parentId?: string | null; x?: number; y?: number }) => void;
   addFolder: (opts?: { title?: string; parentId?: string | null; x?: number; y?: number }) => string;
   removeItems: (ids: string[]) => void;
   renameItem: (id: string, title: string) => void;
@@ -67,6 +67,7 @@ export const useDesktopStore = create<DesktopState>()(
           title: b.title,
           url: b.url,
           favicon: b.favicon,
+          customIcon: b.customIcon,
           x: spot.x, y: spot.y,
           parentId,
           createdAt: Date.now(),
