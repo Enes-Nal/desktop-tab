@@ -9,25 +9,25 @@ import { Globe, Upload, X } from 'lucide-react';
 interface Props {
   open: boolean;
   onClose: () => void;
-  onAdd: (data: { title: string; url: string; favicon: string; customIcon?: string }) => void;
+  onAdd: (data: { name: string; url: string; favicon: string; customIcon?: string }) => void;
 }
 
 export function AddBookmarkDialog({ open, onClose, onAdd }: Props) {
   const [url, setUrl] = useState('');
-  const [title, setTitle] = useState('');
+  const [name, setName] = useState('');
   const [customIcon, setCustomIcon] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (!open) { setUrl(''); setTitle(''); setCustomIcon(null); }
+    if (!open) { setUrl(''); setName(''); setCustomIcon(null); }
   }, [open]);
 
   useEffect(() => {
     if (!url) return;
     const domain = getDomain(url);
-    if (!title) {
-      const name = domain.split('.')[0];
-      setTitle(name.charAt(0).toUpperCase() + name.slice(1));
+    if (!name) {
+      const n = domain.split('.')[0];
+      setName(n.charAt(0).toUpperCase() + n.slice(1));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [url]);
@@ -37,7 +37,7 @@ export function AddBookmarkDialog({ open, onClose, onAdd }: Props) {
     if (!url.trim()) return;
     const finalUrl = normalizeUrl(url);
     onAdd({
-      title: title.trim(),
+      name: name.trim(),
       url: finalUrl,
       favicon: getFaviconUrl(finalUrl),
       customIcon: customIcon ?? undefined,
@@ -98,8 +98,8 @@ export function AddBookmarkDialog({ open, onClose, onAdd }: Props) {
             <Input id="url" autoFocus placeholder="example.com" value={url} onChange={(e) => setUrl(e.target.value)} />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="title">Name</Label>
-            <Input id="title" placeholder="Auto from URL" value={title} onChange={(e) => setTitle(e.target.value)} />
+            <Label htmlFor="name">Name</Label>
+            <Input id="name" placeholder="Auto from URL" value={name} onChange={(e) => setName(e.target.value)} />
           </div>
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
