@@ -97,7 +97,7 @@ export function StartMenu({ onClose, onAddBookmark }: Props) {
       </div>
 
       {/* Bookmarks list */}
-      <div className="flex-1 overflow-y-auto p-2">
+      <div className="overflow-y-auto p-2 max-h-[180px] shrink-0">
         <div className="px-2 py-1 text-[11px] uppercase tracking-wider text-muted-foreground">
           {query ? 'Results' : 'All bookmarks'}
         </div>
@@ -130,7 +130,7 @@ export function StartMenu({ onClose, onAddBookmark }: Props) {
       </div>
 
       {/* Settings */}
-      <div className="border-t border-border/50 p-3 space-y-3">
+      <div className="border-t border-border/50 p-3 space-y-3 flex-1 overflow-y-auto min-h-0">
         <div className="flex items-center justify-between">
           <Label className="text-xs flex items-center gap-2">
             {settings.theme === 'dark' ? <Moon className="w-3.5 h-3.5" /> : <Sun className="w-3.5 h-3.5" />}
