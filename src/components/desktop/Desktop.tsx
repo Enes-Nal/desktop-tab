@@ -274,13 +274,7 @@ export function Desktop() {
         label: 'Set icon from URL…',
         icon: <Link2 className="w-4 h-4" />,
         disabled: multi,
-        onClick: () => {
-          const current = b.customIcon && !b.customIcon.startsWith('data:') ? b.customIcon : '';
-          const url = window.prompt('Enter image URL for the icon:', current);
-          if (url === null) return;
-          const trimmed = url.trim();
-          setCustomIcon(id, trimmed || null);
-        },
+        onClick: () => setIconUrlDialogId(id),
       });
       if (b.customIcon) {
         out.push({
@@ -424,6 +418,19 @@ export function Desktop() {
         onClose={() => setDialogOpen(false)}
         onAdd={(d) => addBookmark(d)}
       />
+
+      <IconUrlDialog
+        open={iconUrlDialogId !== null}
+        initialUrl={iconUrlDialogId ? (() => {
+          const it = items.find(i => i.id === iconUrlDialogId);
+          return it?.customIcon && !it.customIcon.startsWith('data:') ? it.customIcon : '';
+        })() : ''}
+        itemTitle={iconUrlDialogId ? items.find(i => i.id === iconUrlDialogId)?.title : undefined}
+        onClose={() => setIconUrlDialogId(null)}
+        onSave={(url) => { if (iconUrlDialogId) setCustomIcon(iconUrlDialogId, url); }}
+      />
+
+      <NotepadWindow />
 
       <input
         ref={iconFileRef}
