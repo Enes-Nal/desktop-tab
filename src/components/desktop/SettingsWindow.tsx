@@ -159,25 +159,11 @@ export function SettingsWindow({ win }: { win: WindowState }) {
     <Win win={win} icon={<Settings className="h-4 w-4" />} minWidth={320} minHeight={360}>
       <div className="flex-1 overflow-y-auto bg-background/80 p-3 sm:p-4">
         <Tabs defaultValue="personalization" className="mx-auto w-full max-w-5xl">
-          <div className="grid w-full gap-3 sm:gap-4 lg:grid-cols-[200px_minmax(0,1fr)]">
-            <aside className="hidden lg:block">
-              <TabsList className="sticky top-0 flex h-auto w-full flex-col items-stretch justify-start bg-transparent p-0 text-xs">
-                {SETTINGS_TABS.map(tab => (
-                  <TabsTrigger
-                    key={tab.id}
-                    value={tab.id}
-                    className="justify-start rounded-md px-3 py-2 text-xs font-normal data-[state=active]:bg-primary/15 data-[state=active]:shadow-none"
-                  >
-                    {tab.label}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-            </aside>
-
+          <div className="w-full">
             <main className="min-w-0">
-              <TabsList className="mb-3 flex h-auto w-full justify-start overflow-x-auto rounded-md bg-muted/70 p-1 lg:hidden">
+              <TabsList className="mb-3 grid h-auto w-full grid-cols-2 gap-1 rounded-md bg-muted/70 p-1 sm:grid-cols-4">
                 {SETTINGS_TABS.map(tab => (
-                  <TabsTrigger key={tab.id} value={tab.id} className="shrink-0 text-xs">
+                  <TabsTrigger key={tab.id} value={tab.id} className="min-w-0 px-2 text-xs">
                     {tab.label}
                   </TabsTrigger>
                 ))}
