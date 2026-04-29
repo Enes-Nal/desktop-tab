@@ -84,7 +84,7 @@ export function DesktopIcon({
           onDoubleClick={(e) => e.stopPropagation()}
           onKeyDown={(e) => {
             e.stopPropagation();
-            if (e.key === 'Enter') onRenameSubmit(item.id, editValue.trim() || item.title);
+            if (e.key === 'Enter') onRenameSubmit(item.id, editValue);
             if (e.key === 'Escape') onRenameCancel();
           }}
           onBlur={() => onRenameSubmit(item.id, editValue)}
