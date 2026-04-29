@@ -201,15 +201,35 @@ export function StartMenu({ onClose, onAddBookmark }: Props) {
             Upload custom
           </Button>
         </div>
+
+        {/* Bookmark backup */}
+        <div className="pt-1">
+          <Label className="text-xs flex items-center gap-2 mb-2">
+            <Download className="w-3.5 h-3.5" /> Bookmark backup
+          </Label>
+          <input ref={importRef} type="file" accept="application/json,.json" hidden onChange={handleImport} />
+          <div className="flex gap-1.5">
+            <Button variant="outline" size="sm" className="flex-1 h-8 text-xs gap-1" onClick={handleExport}>
+              <Download className="w-3 h-3" /> Export
+            </Button>
+            <Button variant="outline" size="sm" className="flex-1 h-8 text-xs gap-1" onClick={() => importRef.current?.click()}>
+              <Upload className="w-3 h-3" /> Import
+            </Button>
+          </div>
+        </div>
       </div>
 
       {/* Footer actions */}
       <div className="border-t border-border/50 p-2 flex items-center justify-between">
-        <Button variant="ghost" size="sm" onClick={onAddBookmark} className="text-xs gap-1.5">
-          <Plus className="w-4 h-4" /> New bookmark
-        </Button>
         <div className="flex gap-1">
-          <Button variant="ghost" size="icon" className="h-8 w-8" title="Settings"><SettingsIcon className="w-4 h-4" /></Button>
+          <Button variant="ghost" size="sm" onClick={onAddBookmark} className="text-xs gap-1.5">
+            <Plus className="w-4 h-4" /> Bookmark
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => { openNotepad(); onClose(); }} className="text-xs gap-1.5">
+            <FileText className="w-4 h-4" /> Notepad
+          </Button>
+        </div>
+        <div className="flex gap-1">
           <Button variant="ghost" size="icon" className="h-8 w-8" title="Close" onClick={onClose}><Power className="w-4 h-4" /></Button>
         </div>
       </div>
