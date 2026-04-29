@@ -6,6 +6,8 @@ import { AddBookmarkDialog } from './AddBookmarkDialog';
 import { Taskbar } from './Taskbar';
 import { StartMenu } from './StartMenu';
 import { FolderWindow } from './FolderWindow';
+import { NotepadWindow } from './NotepadWindow';
+import { IconUrlDialog } from './IconUrlDialog';
 import { DesktopItem, GRID, ICON_W, ICON_H } from '@/types/desktop';
 import { ExternalLink, Pencil, Trash2, Plus, RefreshCw, FolderPlus, Image as ImageIcon, FolderInput, Link2 } from 'lucide-react';
 
@@ -32,6 +34,7 @@ export function Desktop() {
   const [startOpen, setStartOpen] = useState(false);
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
   const [iconUploadId, setIconUploadId] = useState<string | null>(null);
+  const [iconUrlDialogId, setIconUrlDialogId] = useState<string | null>(null);
   const iconFileRef = useRef<HTMLInputElement>(null);
 
   const drag = useRef<{
