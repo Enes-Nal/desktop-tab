@@ -51,7 +51,7 @@ export function Desktop() {
     origin: Map<string, { x: number; y: number }>;
     moved: boolean;
   } | null>(null);
-  const selBoxRef = useRef<{ startX: number; startY: number; curX: number; curY: number } | null>(null);
+  const selBoxRef = useRef<{ startX: number; startY: number; curX: number; curY: number; active: boolean } | null>(null);
   const [selBox, setSelBox] = useState<typeof selBoxRef.current>(null);
 
   useEffect(() => {
@@ -103,10 +103,10 @@ export function Desktop() {
     if (e.button !== 0) return;
     if ((e.target as HTMLElement).closest('[data-icon-id]')) return;
     if ((e.target as HTMLElement).closest('[data-window-root]')) return;
+    if ((e.target as HTMLElement).closest('button, input, textarea, select, a, [draggable="true"]')) return;
     if (!(e.ctrlKey || e.metaKey || e.shiftKey)) clearSelection();
-    const box = { startX: e.clientX, startY: e.clientY, curX: e.clientX, curY: e.clientY };
+    const box = { startX: e.clientX, startY: e.clientY, curX: e.clientX, curY: e.clientY, active: false };
     selBoxRef.current = box;
-    setSelBox(box);
   };
 
   const onDesktopContextMenu = (e: React.MouseEvent) => {
@@ -154,8 +154,12 @@ export function Desktop() {
         return;
       }
       if (selBoxRef.current) {
-        const next = { ...selBoxRef.current, curX: e.clientX, curY: e.clientY };
+        const dx = e.clientX - selBoxRef.current.startX;
+        const dy = e.clientY - selBoxRef.current.startY;
+        const active = selBoxRef.current.active || Math.abs(dx) + Math.abs(dy) > 6;
+        const next = { ...selBoxRef.current, curX: e.clientX, curY: e.clientY, active };
         selBoxRef.current = next;
+        if (!active) return;
         setSelBox(next);
         const minX = Math.min(next.startX, next.curX);
         const maxX = Math.max(next.startX, next.curX);
@@ -369,14 +373,17 @@ export function Desktop() {
   return (
     <div
       className="fixed inset-0 overflow-hidden"
-      style={{
-        backgroundImage: `url(${settings.wallpaper})`,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-      }}
       onMouseDown={onDesktopMouseDown}
       onContextMenu={onDesktopContextMenu}
     >
+      <img
+        src={settings.wallpaper}
+        alt=""
+        className="absolute inset-0 h-full w-full object-cover pointer-events-none select-none"
+        style={{ imageRendering: 'auto' }}
+        draggable={false}
+        decoding="async"
+      />
       <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/10 pointer-events-none" />
 
       <div className="absolute inset-0" style={{ paddingBottom: TASKBAR_H }}>

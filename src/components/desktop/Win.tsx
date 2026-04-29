@@ -71,6 +71,7 @@ export function Win({ win, icon, toolbar, children, minWidth = 360, minHeight = 
 
   return (
     <div
+      data-window-root
       className={cn(
         'fixed flex flex-col rounded-md overflow-hidden border bg-card/95 backdrop-blur-xl animate-scale-in',
         isActive ? 'border-primary/50 shadow-2xl' : 'border-border shadow-lg',

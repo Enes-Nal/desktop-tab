@@ -16,6 +16,7 @@ import wallpaperDefault from '@/assets/wallpaper-default.jpg';
 import wallpaperDark from '@/assets/wallpaper-dark.jpg';
 import wallpaperLight from '@/assets/wallpaper-light.jpg';
 import { cn } from '@/lib/utils';
+import { normalizeWallpaperUrl } from '@/lib/wallpaper';
 
 interface Props {
   onClose: () => void;
@@ -192,7 +193,7 @@ export function StartMenu({ onClose, onAddBookmark }: Props) {
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   e.preventDefault();
-                  if (wallpaperUrl.trim()) { setSettings({ wallpaper: wallpaperUrl.trim() }); setWallpaperUrl(''); }
+                  if (wallpaperUrl.trim()) { setSettings({ wallpaper: normalizeWallpaperUrl(wallpaperUrl) }); setWallpaperUrl(''); }
                 }
               }}
               className="h-8 text-xs flex-1"
@@ -200,7 +201,7 @@ export function StartMenu({ onClose, onAddBookmark }: Props) {
             <Button
               type="button" variant="outline" size="sm" className="h-8 text-xs px-2"
               disabled={!wallpaperUrl.trim()}
-              onClick={() => { setSettings({ wallpaper: wallpaperUrl.trim() }); setWallpaperUrl(''); }}
+              onClick={() => { setSettings({ wallpaper: normalizeWallpaperUrl(wallpaperUrl) }); setWallpaperUrl(''); }}
             >
               Set
             </Button>
