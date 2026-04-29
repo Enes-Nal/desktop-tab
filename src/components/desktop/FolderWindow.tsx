@@ -110,7 +110,7 @@ export function FolderWindow({
               autoFocus
               defaultValue={folder.title}
               onMouseDown={(e) => e.stopPropagation()}
-              onBlur={(e) => { renameItem(folder.id, e.target.value.trim() || folder.title); setRenamingId(null); }}
+              onBlur={(e) => { renameItem(folder.id, e.target.value); setRenamingId(null); }}
               onKeyDown={(e) => {
                 e.stopPropagation();
                 if (e.key === 'Enter') (e.target as HTMLInputElement).blur();

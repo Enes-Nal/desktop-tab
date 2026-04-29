@@ -37,7 +37,7 @@ export function AddBookmarkDialog({ open, onClose, onAdd }: Props) {
     if (!url.trim()) return;
     const finalUrl = normalizeUrl(url);
     onAdd({
-      title: title.trim() || getDomain(finalUrl),
+      title: title.trim(),
       url: finalUrl,
       favicon: getFaviconUrl(finalUrl),
       customIcon: customIcon ?? undefined,

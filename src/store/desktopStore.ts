@@ -87,7 +87,7 @@ export const useDesktopStore = create<DesktopState>()(
         const item: DesktopItem = {
           id,
           kind: 'folder',
-          title: opts.title || 'New folder',
+          title: opts.title ?? '',
           x: spot.x, y: spot.y,
           parentId,
           createdAt: Date.now(),
