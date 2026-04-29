@@ -44,6 +44,8 @@ export function ContextMenu({ x, y, items, onClose }: Props) {
       className="fixed z-50 min-w-[200px] py-1 rounded-md glass-menu animate-scale-in origin-top-left"
       style={{ left: adjX, top: adjY }}
       onContextMenu={(e) => e.preventDefault()}
+      onMouseDown={(e) => e.stopPropagation()}
+      onClick={(e) => e.stopPropagation()}
     >
       {items.map((item, i) =>
         item.separator ? (

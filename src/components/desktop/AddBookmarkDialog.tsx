@@ -1,33 +1,33 @@
-import { useEffect, useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { useEffect, useRef, useState } from 'react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { getFaviconUrl, normalizeUrl, getDomain } from '@/lib/favicon';
+import { Globe, Upload, X } from 'lucide-react';
 
 interface Props {
   open: boolean;
   onClose: () => void;
-  onAdd: (data: { title: string; url: string; favicon: string }) => void;
-  position?: { x: number; y: number };
-  initialPosition?: { x: number; y: number };
+  onAdd: (data: { title: string; url: string; favicon: string; customIcon?: string }) => void;
 }
 
 export function AddBookmarkDialog({ open, onClose, onAdd }: Props) {
   const [url, setUrl] = useState('');
   const [title, setTitle] = useState('');
+  const [customIcon, setCustomIcon] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (!open) { setUrl(''); setTitle(''); }
+    if (!open) { setUrl(''); setTitle(''); setCustomIcon(null); }
   }, [open]);
 
-  // Auto-fill title from domain when URL changes and title is empty/derived
   useEffect(() => {
     if (!url) return;
     const domain = getDomain(url);
-    if (!title || title === getDomain(url.slice(0, -1))) {
-      const niceName = domain.split('.')[0];
-      setTitle(niceName.charAt(0).toUpperCase() + niceName.slice(1));
+    if (!title) {
+      const name = domain.split('.')[0];
+      setTitle(name.charAt(0).toUpperCase() + name.slice(1));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [url]);
@@ -40,35 +40,56 @@ export function AddBookmarkDialog({ open, onClose, onAdd }: Props) {
       title: title.trim() || getDomain(finalUrl),
       url: finalUrl,
       favicon: getFaviconUrl(finalUrl),
+      customIcon: customIcon ?? undefined,
     });
     onClose();
   };
+
+  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => setCustomIcon(reader.result as string);
+    reader.readAsDataURL(file);
+  };
+
+  const previewIcon = customIcon || (url ? getFaviconUrl(normalizeUrl(url)) : '');
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>New Bookmark</DialogTitle>
+          <DialogDescription>Add a website to your desktop. The favicon is fetched automatically.</DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="space-y-4">
+          <div className="flex items-center gap-3">
+            <div className="w-14 h-14 flex items-center justify-center rounded bg-muted overflow-hidden border border-border">
+              {previewIcon ? (
+                <img src={previewIcon} alt="" className="w-10 h-10 object-contain" />
+              ) : (
+                <Globe className="w-7 h-7 text-muted-foreground" />
+              )}
+            </div>
+            <div className="flex flex-col gap-1">
+              <input ref={fileRef} type="file" accept="image/*" hidden onChange={handleFile} />
+              <Button type="button" variant="outline" size="sm" onClick={() => fileRef.current?.click()}>
+                <Upload className="w-3.5 h-3.5 mr-1.5" /> Upload icon
+              </Button>
+              {customIcon && (
+                <Button type="button" variant="ghost" size="sm" onClick={() => setCustomIcon(null)}>
+                  <X className="w-3.5 h-3.5 mr-1.5" /> Use favicon
+                </Button>
+              )}
+            </div>
+          </div>
           <div className="space-y-2">
             <Label htmlFor="url">URL</Label>
-            <Input
-              id="url"
-              autoFocus
-              placeholder="example.com"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-            />
+            <Input id="url" autoFocus placeholder="example.com" value={url} onChange={(e) => setUrl(e.target.value)} />
           </div>
           <div className="space-y-2">
             <Label htmlFor="title">Name</Label>
-            <Input
-              id="title"
-              placeholder="Auto from URL"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-            />
+            <Input id="title" placeholder="Auto from URL" value={title} onChange={(e) => setTitle(e.target.value)} />
           </div>
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>

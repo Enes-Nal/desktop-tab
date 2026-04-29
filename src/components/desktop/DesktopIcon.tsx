@@ -1,67 +1,77 @@
 import { useState, useRef, useEffect } from 'react';
-import { Bookmark, ICON_W, ICON_H } from '@/types/desktop';
+import { DesktopItem, ICON_W, ICON_H } from '@/types/desktop';
 import { cn } from '@/lib/utils';
-import { Globe } from 'lucide-react';
+import { Globe, Folder } from 'lucide-react';
 
 interface Props {
-  bookmark: Bookmark;
+  item: DesktopItem;
   selected: boolean;
   isRenaming: boolean;
+  isDropTarget?: boolean;
   onMouseDown: (e: React.MouseEvent, id: string) => void;
   onContextMenu: (e: React.MouseEvent, id: string) => void;
-  onOpen: (b: Bookmark) => void;
+  onActivate: (item: DesktopItem) => void;
   onRenameSubmit: (id: string, title: string) => void;
   onRenameCancel: () => void;
 }
 
 export function DesktopIcon({
-  bookmark, selected, isRenaming,
-  onMouseDown, onContextMenu, onOpen, onRenameSubmit, onRenameCancel,
+  item, selected, isRenaming, isDropTarget,
+  onMouseDown, onContextMenu, onActivate, onRenameSubmit, onRenameCancel,
 }: Props) {
   const [imgError, setImgError] = useState(false);
-  const [editValue, setEditValue] = useState(bookmark.title);
+  const [editValue, setEditValue] = useState(item.title);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (isRenaming) {
-      setEditValue(bookmark.title);
+      setEditValue(item.title);
       requestAnimationFrame(() => {
         inputRef.current?.focus();
         inputRef.current?.select();
       });
     }
-  }, [isRenaming, bookmark.title]);
+  }, [isRenaming, item.title]);
+
+  const iconSrc = item.customIcon || item.favicon;
 
   return (
     <div
-      data-icon-id={bookmark.id}
+      data-icon-id={item.id}
       className={cn(
         'absolute flex flex-col items-center gap-1 p-1 rounded-sm cursor-default',
-        'transition-[background-color,box-shadow] duration-100',
+        'transition-[background-color,box-shadow,transform] duration-100',
         selected && 'bg-primary/25 ring-1 ring-primary/60',
         !selected && 'hover:bg-foreground/10',
+        isDropTarget && 'bg-primary/40 ring-2 ring-primary scale-105',
       )}
       style={{
-        left: bookmark.x,
-        top: bookmark.y,
+        left: item.x,
+        top: item.y,
         width: ICON_W,
         height: ICON_H,
       }}
-      onMouseDown={(e) => onMouseDown(e, bookmark.id)}
-      onContextMenu={(e) => onContextMenu(e, bookmark.id)}
-      onDoubleClick={() => onOpen(bookmark)}
+      onMouseDown={(e) => onMouseDown(e, item.id)}
+      onContextMenu={(e) => onContextMenu(e, item.id)}
+      onDoubleClick={() => onActivate(item)}
     >
-      <div className="w-12 h-12 flex items-center justify-center rounded bg-card/40 backdrop-blur-sm shadow-md overflow-hidden">
-        {bookmark.favicon && !imgError ? (
+      <div className="w-12 h-12 flex items-center justify-center overflow-hidden">
+        {item.kind === 'folder' ? (
+          <Folder
+            className="w-11 h-11"
+            strokeWidth={1.25}
+            style={{ color: 'hsl(45 90% 60%)', fill: 'hsl(45 90% 60% / 0.85)' }}
+          />
+        ) : iconSrc && !imgError ? (
           <img
-            src={bookmark.favicon}
+            src={iconSrc}
             alt=""
-            className="w-9 h-9 object-contain"
+            className="w-10 h-10 object-contain drop-shadow-md"
             draggable={false}
             onError={() => setImgError(true)}
           />
         ) : (
-          <Globe className="w-8 h-8 text-primary" />
+          <Globe className="w-9 h-9 text-primary drop-shadow-md" />
         )}
       </div>
       {isRenaming ? (
@@ -74,10 +84,10 @@ export function DesktopIcon({
           onDoubleClick={(e) => e.stopPropagation()}
           onKeyDown={(e) => {
             e.stopPropagation();
-            if (e.key === 'Enter') onRenameSubmit(bookmark.id, editValue.trim() || bookmark.title);
+            if (e.key === 'Enter') onRenameSubmit(item.id, editValue.trim() || item.title);
             if (e.key === 'Escape') onRenameCancel();
           }}
-          onBlur={() => onRenameSubmit(bookmark.id, editValue.trim() || bookmark.title)}
+          onBlur={() => onRenameSubmit(item.id, editValue.trim() || item.title)}
           className="w-full text-[11px] text-center px-1 bg-background text-foreground border border-primary outline-none rounded-sm"
         />
       ) : (
@@ -87,7 +97,7 @@ export function DesktopIcon({
             selected && 'bg-primary/40'
           )}
         >
-          {bookmark.title}
+          {item.title}
         </span>
       )}
     </div>
