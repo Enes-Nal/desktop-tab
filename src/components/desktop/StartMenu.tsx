@@ -132,11 +132,35 @@ export function StartMenu({ onClose, onAddBookmark }: Props) {
             ))}
           </div>
           <input ref={fileRef} type="file" accept="image/*" hidden onChange={handleUpload} />
+          <div className="mt-2 flex gap-1">
+            <Input
+              placeholder="Wallpaper image URL"
+              value={wallpaperUrl}
+              onChange={(e) => setWallpaperUrl(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  if (wallpaperUrl.trim()) { setSettings({ wallpaper: wallpaperUrl.trim() }); setWallpaperUrl(''); }
+                }
+              }}
+              className="h-8 text-xs flex-1"
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-8 text-xs px-2"
+              disabled={!wallpaperUrl.trim()}
+              onClick={() => { setSettings({ wallpaper: wallpaperUrl.trim() }); setWallpaperUrl(''); }}
+            >
+              Set
+            </Button>
+          </div>
           <Button
             type="button"
             variant="outline"
             size="sm"
-            className="w-full mt-2 h-8 text-xs"
+            className="w-full mt-1.5 h-8 text-xs"
             onClick={() => fileRef.current?.click()}
           >
             Upload custom
