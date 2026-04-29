@@ -4,6 +4,17 @@ import { useFsStore } from '@/store/fsStore';
 import { GOOGLE_APPS, GoogleService } from '@/lib/googleApps';
 import { toast } from 'sonner';
 
+const TASKBAR_H = 48;
+
+const responsiveWindowSize = (width: number, height: number) => {
+  const maxW = Math.max(320, window.innerWidth - 16);
+  const maxH = Math.max(320, window.innerHeight - TASKBAR_H - 16);
+  return {
+    w: Math.min(width, maxW),
+    h: Math.min(height, maxH),
+  };
+};
+
 function openExternalUrl(url: string) {
   window.location.assign(url);
 }
@@ -66,8 +77,7 @@ export function openSettingsApp() {
   useWMStore.getState().open({
     app: 'settings',
     title: 'Settings',
-    w: 760,
-    h: 620,
+    ...responsiveWindowSize(760, 620),
     singleton: true,
   });
 }

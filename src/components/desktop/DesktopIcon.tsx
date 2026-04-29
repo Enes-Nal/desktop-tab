@@ -8,6 +8,7 @@ interface Props {
   selected: boolean;
   isRenaming: boolean;
   isDropTarget?: boolean;
+  hoverEffectsEnabled: boolean;
   scale: number;
   onMouseDown: (e: React.MouseEvent, id: string) => void;
   onContextMenu: (e: React.MouseEvent, id: string) => void;
@@ -17,7 +18,7 @@ interface Props {
 }
 
 export function DesktopIcon({
-  node, selected, isRenaming, isDropTarget, scale,
+  node, selected, isRenaming, isDropTarget, hoverEffectsEnabled, scale,
   onMouseDown, onContextMenu, onActivate, onRenameSubmit, onRenameCancel,
 }: Props) {
   const [editValue, setEditValue] = useState(node.name);
@@ -47,9 +48,9 @@ export function DesktopIcon({
       className={cn(
         'desktop-icon absolute flex flex-col items-center gap-1 p-1 rounded-sm cursor-default',
         'transition-[background-color,box-shadow,transform] duration-100',
-        isBookmark && 'bookmark-portal',
+        isBookmark && hoverEffectsEnabled && 'bookmark-portal',
         selected && 'bg-primary/25 ring-1 ring-primary/60',
-        !selected && 'hover:bg-foreground/10',
+        hoverEffectsEnabled && !selected && 'hover:bg-foreground/10',
         isDropTarget && 'bg-primary/40 ring-2 ring-primary scale-105',
       )}
       style={{
@@ -95,7 +96,7 @@ export function DesktopIcon({
           {node.name}
         </span>
       )}
-      {isBookmark && !isRenaming && (
+      {hoverEffectsEnabled && isBookmark && !isRenaming && (
         <div className="portal-preview pointer-events-none" aria-hidden>
           <div className="portal-preview-bar">
             <span />

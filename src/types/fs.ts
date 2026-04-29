@@ -41,7 +41,7 @@ export interface FsNode {
 }
 
 export type Theme = 'light' | 'dark';
-export type WindowTheme = 'classic-95' | 'glassy-vista' | 'neon-cyberdeck' | 'cozy-paper' | 'minimal-mono';
+export type WindowTheme = 'glassy-vista' | 'neon-cyberdeck' | 'cozy-paper' | 'minimal-mono';
 
 export interface DesktopSettings {
   theme: Theme;
@@ -52,6 +52,7 @@ export interface DesktopSettings {
   wallpaperShuffleEnabled: boolean;
   wallpaperShuffleMinutes: number;
   wallpaperLastShuffleAt: number;
+  hoverEffectsEnabled: boolean;
   snapToGrid: boolean;
   autoArrange: boolean;
   pinnedIds: string[];

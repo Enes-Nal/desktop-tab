@@ -6,8 +6,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
-  Download, Image as ImageIcon, Moon, Palette, Settings, Shuffle, Sun, Type,
+  Download, Image as ImageIcon, Keyboard, MousePointer2, Moon, Palette, Settings, Shuffle, Sun, Type,
   Upload, X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -25,11 +26,52 @@ const PRESETS = [
 ];
 
 const WINDOW_THEMES = [
-  { id: 'classic-95', label: 'Classic Windows 95', swatch: ['#c0c0c0', '#000080', '#ffffff'] },
   { id: 'glassy-vista', label: 'Glassy Vista', swatch: ['#d7f2ff', '#2f86c7', '#0f2238'] },
   { id: 'neon-cyberdeck', label: 'Neon cyberdeck', swatch: ['#0a0f1d', '#35f0ff', '#ff2bd6'] },
   { id: 'cozy-paper', label: 'Cozy paper desk', swatch: ['#f4ead8', '#765a3a', '#7da06b'] },
   { id: 'minimal-mono', label: 'Minimal monochrome', swatch: ['#f7f7f4', '#1f1f1f', '#b8b8b2'] },
+] as const;
+
+const SETTINGS_TABS = [
+  { id: 'personalization', label: 'Personalization' },
+  { id: 'desktop', label: 'Desktop behavior' },
+  { id: 'shortcuts', label: 'Shortcuts' },
+  { id: 'backup', label: 'Backup' },
+] as const;
+
+const SHORTCUT_GROUPS = [
+  {
+    title: 'Desktop',
+    shortcuts: [
+      { keys: ['Ctrl/Cmd', 'K'], action: 'Open command palette' },
+      { keys: ['Ctrl/Cmd', 'N'], action: 'Create a new text file' },
+      { keys: ['Ctrl/Cmd', 'Shift', 'N'], action: 'Create a new folder' },
+      { keys: ['Delete'], action: 'Move selected items to Recycle Bin' },
+      { keys: ['F2'], action: 'Rename the selected item' },
+      { keys: ['Enter'], action: 'Open selected items' },
+      { keys: ['Escape'], action: 'Clear selection and close menus' },
+      { keys: ['Ctrl/Cmd/Shift', 'Click'], action: 'Add or remove items from selection' },
+      { keys: ['Drag empty space'], action: 'Select icons with a rectangle' },
+    ],
+  },
+  {
+    title: 'File Explorer',
+    shortcuts: [
+      { keys: ['Ctrl/Cmd', 'F'], action: 'Focus search' },
+      { keys: ['Alt', 'Left'], action: 'Go back' },
+      { keys: ['Alt', 'Right'], action: 'Go forward' },
+      { keys: ['Backspace'], action: 'Go up one folder' },
+      { keys: ['Delete'], action: 'Move selected items to Recycle Bin' },
+      { keys: ['F2'], action: 'Rename the selected item' },
+      { keys: ['Enter'], action: 'Open the selected item' },
+    ],
+  },
+  {
+    title: 'Notepad',
+    shortcuts: [
+      { keys: ['Ctrl/Cmd', 'S'], action: 'Save the open text file' },
+    ],
+  },
 ] as const;
 
 export function SettingsWindow({ win }: { win: WindowState }) {
@@ -114,25 +156,25 @@ export function SettingsWindow({ win }: { win: WindowState }) {
   };
 
   return (
-    <Win win={win} icon={<Settings className="h-4 w-4" />} minWidth={560} minHeight={420}>
-      <div className="flex-1 overflow-y-auto bg-background/80 p-4">
-        <div className="mx-auto grid max-w-4xl gap-4 lg:grid-cols-[220px_1fr]">
+    <Win win={win} icon={<Settings className="h-4 w-4" />} minWidth={320} minHeight={360}>
+      <div className="flex-1 overflow-y-auto bg-background/80 p-3 sm:p-4">
+        <div className="mx-auto grid w-full max-w-5xl gap-3 sm:gap-4 lg:grid-cols-[200px_minmax(0,1fr)]">
           <aside className="hidden lg:block">
             <div className="sticky top-0 space-y-1 text-xs text-muted-foreground">
-              <div className="rounded-sm bg-primary/15 px-3 py-2 text-foreground">Personalization</div>
-              <div className="px-3 py-2">Desktop behavior</div>
-              <div className="px-3 py-2">Backup</div>
+              <div className="rounded-md bg-primary/15 px-3 py-2 text-foreground">Personalization</div>
+              <div className="rounded-md px-3 py-2">Desktop behavior</div>
+              <div className="rounded-md px-3 py-2">Backup</div>
             </div>
           </aside>
 
-          <main className="space-y-4">
-            <section className="rounded-md border border-border/70 bg-card/70 p-4">
+          <main className="min-w-0 space-y-3 sm:space-y-4">
+            <section className="rounded-md border border-border/70 bg-card/75 p-3 shadow-sm backdrop-blur sm:p-4">
               <h2 className="mb-3 text-sm font-medium">Appearance</h2>
               <div className="space-y-4">
-                <div className="flex items-center justify-between gap-4">
-                  <Label className="text-sm flex items-center gap-2">
+                <div className="flex min-w-0 items-center justify-between gap-4">
+                  <Label className="flex min-w-0 items-center gap-2 text-sm">
                     {settings.theme === 'dark' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
-                    Dark mode
+                    <span className="truncate">Dark mode</span>
                   </Label>
                   <Switch
                     checked={settings.theme === 'dark'}
@@ -144,14 +186,14 @@ export function SettingsWindow({ win }: { win: WindowState }) {
                   <Label className="mb-2 flex items-center gap-2 text-sm">
                     <Palette className="w-4 h-4" /> Window theme
                   </Label>
-                  <div className="grid gap-2 sm:grid-cols-2">
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                     {WINDOW_THEMES.map(theme => (
                       <button
                         key={theme.id}
                         type="button"
                         onClick={() => setSettings({ windowTheme: theme.id })}
                         className={cn(
-                          'h-11 rounded-sm border px-3 flex items-center justify-between gap-2 text-left text-xs transition-colors',
+                          'min-h-11 rounded-md border px-3 py-2 flex items-center justify-between gap-2 text-left text-xs transition-colors',
                           settings.windowTheme === theme.id
                             ? 'border-primary bg-primary/15'
                             : 'border-border/70 hover:bg-foreground/10',
@@ -176,7 +218,7 @@ export function SettingsWindow({ win }: { win: WindowState }) {
                   <Label className="mb-2 flex items-center gap-2 text-sm">
                     <Type className="w-4 h-4" /> Font
                   </Label>
-                  <div className="flex gap-2">
+                  <div className="flex min-w-0 flex-col gap-2 sm:flex-row">
                     <Input
                       list="google-fonts"
                       placeholder="Search Google Fonts"
@@ -190,13 +232,13 @@ export function SettingsWindow({ win }: { win: WindowState }) {
                           setSettings({ fontFamily: next });
                         }
                       }}
-                      className="h-9 flex-1 text-sm"
+                      className="h-9 min-w-0 flex-1 text-sm"
                     />
                     <Button
                       type="button"
                       variant="outline"
                       size="sm"
-                      className="h-9"
+                      className="h-9 shrink-0"
                       disabled={!fontQuery.trim() || !GOOGLE_FONTS.includes(fontQuery.trim() as typeof GOOGLE_FONTS[number])}
                       onClick={() => setSettings({ fontFamily: fontQuery.trim() })}
                     >
@@ -226,9 +268,9 @@ export function SettingsWindow({ win }: { win: WindowState }) {
               </div>
             </section>
 
-            <section className="rounded-md border border-border/70 bg-card/70 p-4">
+            <section className="rounded-md border border-border/70 bg-card/75 p-3 shadow-sm backdrop-blur sm:p-4">
               <h2 className="mb-3 text-sm font-medium">Wallpaper</h2>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                 {PRESETS.map(p => (
                   <button
                     key={p.name}
@@ -238,7 +280,7 @@ export function SettingsWindow({ win }: { win: WindowState }) {
                       wallpaperLastShuffleAt: Date.now(),
                     })}
                     className={cn(
-                      'aspect-video rounded-sm overflow-hidden border-2 transition-all',
+                      'aspect-video overflow-hidden rounded-md border-2 transition-all',
                       settings.wallpaper === p.url ? 'border-primary' : 'border-transparent hover:border-border'
                     )}
                   >
@@ -248,7 +290,7 @@ export function SettingsWindow({ win }: { win: WindowState }) {
               </div>
 
               <input ref={fileRef} type="file" accept="image/*" hidden onChange={handleUpload} />
-              <div className="mt-3 flex gap-2">
+              <div className="mt-3 flex min-w-0 flex-col gap-2 sm:flex-row">
                 <Input
                   placeholder="Wallpaper image URL(s)"
                   value={wallpaperUrl}
@@ -259,17 +301,17 @@ export function SettingsWindow({ win }: { win: WindowState }) {
                       if (wallpaperUrl.trim()) addWallpapers(wallpaperUrl);
                     }
                   }}
-                  className="h-9 flex-1 text-sm"
+                  className="h-9 min-w-0 flex-1 text-sm"
                 />
                 <Button
-                  type="button" variant="outline" size="sm" className="h-9"
+                  type="button" variant="outline" size="sm" className="h-9 shrink-0"
                   disabled={!wallpaperUrl.trim()}
                   onClick={() => addWallpapers(wallpaperUrl)}
                 >
                   Add
                 </Button>
                 <Button
-                  type="button" variant="outline" size="sm" className="h-9 gap-1.5"
+                  type="button" variant="outline" size="sm" className="h-9 shrink-0 gap-1.5"
                   onClick={() => fileRef.current?.click()}
                 >
                   <Upload className="w-4 h-4" /> Upload
@@ -277,9 +319,9 @@ export function SettingsWindow({ win }: { win: WindowState }) {
               </div>
 
               <div className="mt-3 space-y-2">
-                <div className="flex items-center justify-between gap-2">
-                  <Label className="text-sm flex items-center gap-2">
-                    <Shuffle className="w-4 h-4" /> Shuffle wallpapers
+                <div className="flex min-w-0 items-center justify-between gap-2">
+                  <Label className="flex min-w-0 items-center gap-2 text-sm">
+                    <Shuffle className="w-4 h-4 shrink-0" /> <span className="truncate">Shuffle wallpapers</span>
                   </Label>
                   <Switch
                     checked={settings.wallpaperShuffleEnabled}
@@ -290,7 +332,7 @@ export function SettingsWindow({ win }: { win: WindowState }) {
                     })}
                   />
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <span className="text-xs text-muted-foreground shrink-0">Every</span>
                   <Input
                     type="number"
@@ -305,7 +347,7 @@ export function SettingsWindow({ win }: { win: WindowState }) {
                   />
                   <span className="text-xs text-muted-foreground">minutes</span>
                 </div>
-                <div className="max-h-40 overflow-y-auto space-y-1 pr-1">
+                <div className="max-h-40 space-y-1 overflow-y-auto pr-1">
                   {settings.wallpapers.map((url) => (
                     <div
                       key={url}
@@ -317,7 +359,7 @@ export function SettingsWindow({ win }: { win: WindowState }) {
                       <button
                         type="button"
                         onClick={() => setSettings({ wallpaper: url, wallpaperLastShuffleAt: Date.now() })}
-                        className="h-10 w-16 overflow-hidden rounded-sm bg-muted shrink-0"
+                        className="h-10 w-16 shrink-0 overflow-hidden rounded-md bg-muted"
                         title="Use wallpaper"
                       >
                         <img src={url} alt="" className="h-full w-full object-cover" />
@@ -339,27 +381,38 @@ export function SettingsWindow({ win }: { win: WindowState }) {
               </div>
             </section>
 
-            <section className="rounded-md border border-border/70 bg-card/70 p-4">
+            <section className="rounded-md border border-border/70 bg-card/75 p-3 shadow-sm backdrop-blur sm:p-4">
               <h2 className="mb-3 text-sm font-medium">Desktop</h2>
-              <div className="flex items-center justify-between gap-4">
-                <Label className="text-sm">Snap icons to grid</Label>
-                <Switch
-                  checked={settings.snapToGrid}
-                  onCheckedChange={(v) => setSettings({ snapToGrid: v })}
-                />
+              <div className="space-y-3">
+                <div className="flex min-w-0 items-center justify-between gap-4">
+                  <Label className="flex min-w-0 items-center gap-2 truncate text-sm">
+                    <MousePointer2 className="h-4 w-4 shrink-0" /> Hover effects
+                  </Label>
+                  <Switch
+                    checked={settings.hoverEffectsEnabled}
+                    onCheckedChange={(v) => setSettings({ hoverEffectsEnabled: v })}
+                  />
+                </div>
+                <div className="flex min-w-0 items-center justify-between gap-4">
+                  <Label className="min-w-0 truncate text-sm">Snap icons to grid</Label>
+                  <Switch
+                    checked={settings.snapToGrid}
+                    onCheckedChange={(v) => setSettings({ snapToGrid: v })}
+                  />
+                </div>
               </div>
             </section>
 
-            <section className="rounded-md border border-border/70 bg-card/70 p-4">
+            <section className="rounded-md border border-border/70 bg-card/75 p-3 shadow-sm backdrop-blur sm:p-4">
               <h2 className="mb-3 flex items-center gap-2 text-sm font-medium">
                 <ImageIcon className="w-4 h-4" /> Bookmark backup
               </h2>
               <input ref={importRef} type="file" accept="application/json,.json" hidden onChange={handleImport} />
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" className="h-9 gap-1.5" onClick={handleExport}>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Button variant="outline" size="sm" className="h-9 justify-center gap-1.5" onClick={handleExport}>
                   <Download className="w-4 h-4" /> Export
                 </Button>
-                <Button variant="outline" size="sm" className="h-9 gap-1.5" onClick={() => importRef.current?.click()}>
+                <Button variant="outline" size="sm" className="h-9 justify-center gap-1.5" onClick={() => importRef.current?.click()}>
                   <Upload className="w-4 h-4" /> Import
                 </Button>
               </div>

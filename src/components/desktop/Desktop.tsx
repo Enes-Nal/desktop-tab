@@ -589,6 +589,7 @@ export function Desktop() {
             selected={selectedIds.includes(node.id)}
             isRenaming={renamingId === node.id}
             isDropTarget={dropTargetId === node.id}
+            hoverEffectsEnabled={settings.hoverEffectsEnabled}
             scale={iconScale}
             onMouseDown={onIconMouseDown}
             onContextMenu={onIconContextMenu}

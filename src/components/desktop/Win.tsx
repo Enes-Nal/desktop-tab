@@ -15,6 +15,11 @@ interface Props {
 const TASKBAR_H = 48;
 type SnapZone = 'left' | 'right' | 'top' | 'bottom';
 
+const viewportBounds = () => ({
+  width: Math.max(320, window.innerWidth),
+  height: Math.max(240, window.innerHeight - TASKBAR_H),
+});
+
 const snapZoneFromPoint = (x: number, y: number): SnapZone | null => {
   const margin = 18;
   if (y <= margin) return 'top';
@@ -42,6 +47,26 @@ export function Win({ win, icon, toolbar, children, minWidth = 360, minHeight = 
   const [snapPreview, setSnapPreview] = useState<SnapZone | null>(null);
 
   useEffect(() => {
+    if (win.maximized || win.minimized) return;
+    const clampToViewport = () => {
+      const bounds = viewportBounds();
+      const maxW = Math.max(280, bounds.width - 16);
+      const maxH = Math.max(200, bounds.height - 16);
+      const nextW = Math.min(win.w, maxW);
+      const nextH = Math.min(win.h, maxH);
+      const nextX = Math.max(0, Math.min(win.x, bounds.width - Math.min(80, nextW)));
+      const nextY = Math.max(0, Math.min(win.y, bounds.height - Math.min(40, nextH)));
+      if (nextW !== win.w || nextH !== win.h || nextX !== win.x || nextY !== win.y) {
+        setGeom(win.id, { x: nextX, y: nextY, w: nextW, h: nextH });
+      }
+    };
+
+    clampToViewport();
+    window.addEventListener('resize', clampToViewport);
+    return () => window.removeEventListener('resize', clampToViewport);
+  }, [setGeom, win.h, win.id, win.maximized, win.minimized, win.w, win.x, win.y]);
+
+  useEffect(() => {
     const onMove = (e: MouseEvent) => {
       if (dragRef.current) {
         const d = dragRef.current;
@@ -66,16 +91,19 @@ export function Win({ win, icon, toolbar, children, minWidth = 360, minHeight = 
       if (resizeRef.current) {
         const r = resizeRef.current;
         const dx = e.clientX - r.sx, dy = e.clientY - r.sy;
+        const bounds = viewportBounds();
+        const effectiveMinWidth = Math.min(minWidth, Math.max(280, bounds.width - 16));
+        const effectiveMinHeight = Math.min(minHeight, Math.max(200, bounds.height - 16));
         const next: Partial<typeof win> = {};
-        if (r.dir.includes('e')) next.w = Math.max(minWidth, r.ow + dx);
-        if (r.dir.includes('s')) next.h = Math.max(minHeight, r.oh + dy);
+        if (r.dir.includes('e')) next.w = Math.max(effectiveMinWidth, Math.min(bounds.width - r.ox, r.ow + dx));
+        if (r.dir.includes('s')) next.h = Math.max(effectiveMinHeight, Math.min(bounds.height - r.oy, r.oh + dy));
         if (r.dir.includes('w')) {
-          const newW = Math.max(minWidth, r.ow - dx);
+          const newW = Math.max(effectiveMinWidth, Math.min(r.ox + r.ow, r.ow - dx));
           next.w = newW;
           next.x = r.ox + (r.ow - newW);
         }
         if (r.dir.includes('n')) {
-          const newH = Math.max(minHeight, r.oh - dy);
+          const newH = Math.max(effectiveMinHeight, Math.min(r.oy + r.oh, r.oh - dy));
           next.h = newH;
           next.y = Math.max(0, r.oy + (r.oh - newH));
         }

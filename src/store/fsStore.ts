@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import {
-  FsNode, DesktopSettings, GRID,
+  FsNode, DesktopSettings, GRID, WindowTheme,
   ROOT_DESKTOP, ROOT_DOCUMENTS, ROOT_PICTURES, ROOT_IDS, isRoot,
 } from '@/types/fs';
 import wallpaperDefault from '@/assets/wallpaper-default.jpg';
@@ -168,6 +168,7 @@ const defaultSettings = (): DesktopSettings => ({
   wallpaperShuffleEnabled: false,
   wallpaperShuffleMinutes: 15,
   wallpaperLastShuffleAt: Date.now(),
+  hoverEffectsEnabled: true,
   snapToGrid: false,
   autoArrange: false,
   pinnedIds: [],
@@ -189,6 +190,11 @@ const normalizeGoogleAccounts = (accounts: DesktopSettings['googleAccounts'] | u
     .filter(account => account.label.length > 0);
 };
 
+const normalizeWindowTheme = (theme: unknown): WindowTheme => {
+  if (theme === 'neon-cyberdeck' || theme === 'cozy-paper' || theme === 'minimal-mono') return theme;
+  return 'glassy-vista';
+};
+
 const normalizeSettings = (settings: Partial<DesktopSettings> | null | undefined): DesktopSettings => {
   const defaults = defaultSettings();
   const wallpaper = settings?.wallpaper || defaults.wallpaper;
@@ -197,11 +203,12 @@ const normalizeSettings = (settings: Partial<DesktopSettings> | null | undefined
     ...defaults,
     ...settings,
     wallpaper,
-    windowTheme: settings?.windowTheme || defaults.windowTheme,
+    windowTheme: normalizeWindowTheme(settings?.windowTheme),
     fontFamily: settings?.fontFamily || defaults.fontFamily,
     wallpapers: wallpapers.length ? wallpapers : [wallpaper],
     wallpaperShuffleMinutes: Math.max(1, settings?.wallpaperShuffleMinutes ?? defaults.wallpaperShuffleMinutes),
     wallpaperLastShuffleAt: settings?.wallpaperLastShuffleAt ?? defaults.wallpaperLastShuffleAt,
+    hoverEffectsEnabled: settings?.hoverEffectsEnabled ?? defaults.hoverEffectsEnabled,
     autoArrange: settings?.autoArrange ?? defaults.autoArrange,
     pinnedIds: settings?.pinnedIds ?? defaults.pinnedIds,
     layoutPresets: settings?.layoutPresets ?? defaults.layoutPresets,
