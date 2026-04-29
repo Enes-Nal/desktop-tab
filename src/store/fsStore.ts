@@ -5,6 +5,7 @@ import {
 } from '@/types/fs';
 import wallpaperDefault from '@/assets/wallpaper-default.jpg';
 import { loadNodes, saveNodes, loadSettings, saveSettings, putBlob, deleteBlob } from '@/lib/fsdb';
+import { getFaviconUrl, normalizeUrl } from '@/lib/favicon';
 
 interface FsState {
   nodes: FsNode[];
@@ -36,6 +37,20 @@ interface FsState {
   setItemParent: (id: string, parentId: string | null, pos?: { x: number; y: number }) => void;
   setCustomIcon: (id: string, dataUrl: string | null) => void;
   updateTextFile: (id: string, content: string) => void;
+  updateBookmark: (id: string, patch: { name?: string; url?: string; favicon?: string; customIcon?: string; notes?: string; tags?: string[] }) => void;
+  markBookmarkOpened: (id: string) => void;
+  restoreItems: (ids: string[]) => void;
+  emptyRecycleBin: () => void;
+  importBookmarksHtml: (html: string, parentMode: 'desktop' | 'folder') => { ok: boolean; count: number; error?: string };
+  pinItem: (id: string) => void;
+  unpinItem: (id: string) => void;
+  reorderPinned: (fromId: string, toId: string) => void;
+  sortFolder: (parentId: string, by: 'name' | 'type' | 'created') => void;
+  alignFolderToGrid: (parentId: string) => void;
+  saveLayoutPreset: (name: string, parentId?: string) => void;
+  restoreLayoutPreset: (name: string) => void;
+  saveWorkspace: (name: string) => void;
+  switchWorkspace: (id: string) => void;
 
   // Export / import
   exportItems: () => string;
@@ -121,8 +136,32 @@ const persistNodes = (nodes: FsNode[]) => {
 
 const touch = (n: FsNode): FsNode => ({ ...n, modifiedAt: Date.now() });
 
+const collectWithDescendants = (all: FsNode[], ids: string[]) => {
+  const out = new Set(ids);
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const it of all) {
+      if (it.parentId && out.has(it.parentId) && !out.has(it.id)) {
+        out.add(it.id);
+        changed = true;
+      }
+    }
+  }
+  return out;
+};
+
+const visibleNodes = (nodes: FsNode[]) => nodes.filter(n => !n.deletedAt);
+
+const layoutItems = (items: FsNode[]) => items.map((node, index) => ({
+  id: node.id,
+  x: 12 + Math.floor(index / 8) * GRID,
+  y: 12 + (index % 8) * GRID,
+}));
+
 const defaultSettings = (): DesktopSettings => ({
   theme: 'dark',
+  windowTheme: 'glassy-vista',
   fontFamily: 'system',
   wallpaper: wallpaperDefault,
   wallpapers: [wallpaperDefault],
@@ -130,7 +169,25 @@ const defaultSettings = (): DesktopSettings => ({
   wallpaperShuffleMinutes: 15,
   wallpaperLastShuffleAt: Date.now(),
   snapToGrid: false,
+  autoArrange: false,
+  pinnedIds: [],
+  layoutPresets: {},
+  workspaces: [],
+  activeWorkspaceId: 'default',
+  googleAccounts: [],
 });
+
+const normalizeGoogleAccounts = (accounts: DesktopSettings['googleAccounts'] | undefined) => {
+  if (!Array.isArray(accounts)) return [];
+  return accounts
+    .map((account, index) => ({
+      id: account.id || `gmail-account-${index}`,
+      label: (account.label || account.email || `Gmail ${index + 1}`).trim(),
+      email: account.email?.trim() || undefined,
+      gmailUrl: account.gmailUrl || `https://mail.google.com/mail/u/${index}/`,
+    }))
+    .filter(account => account.label.length > 0);
+};
 
 const normalizeSettings = (settings: Partial<DesktopSettings> | null | undefined): DesktopSettings => {
   const defaults = defaultSettings();
@@ -140,10 +197,17 @@ const normalizeSettings = (settings: Partial<DesktopSettings> | null | undefined
     ...defaults,
     ...settings,
     wallpaper,
+    windowTheme: settings?.windowTheme || defaults.windowTheme,
     fontFamily: settings?.fontFamily || defaults.fontFamily,
     wallpapers: wallpapers.length ? wallpapers : [wallpaper],
     wallpaperShuffleMinutes: Math.max(1, settings?.wallpaperShuffleMinutes ?? defaults.wallpaperShuffleMinutes),
     wallpaperLastShuffleAt: settings?.wallpaperLastShuffleAt ?? defaults.wallpaperLastShuffleAt,
+    autoArrange: settings?.autoArrange ?? defaults.autoArrange,
+    pinnedIds: settings?.pinnedIds ?? defaults.pinnedIds,
+    layoutPresets: settings?.layoutPresets ?? defaults.layoutPresets,
+    workspaces: settings?.workspaces ?? defaults.workspaces,
+    activeWorkspaceId: settings?.activeWorkspaceId ?? defaults.activeWorkspaceId,
+    googleAccounts: normalizeGoogleAccounts(settings?.googleAccounts),
   };
 };
 
@@ -258,22 +322,20 @@ export const useFsStore = create<FsState>()((setState, get) => ({
     // Block deleting root folders
     const filtered = ids.filter(id => !isRoot(id));
     if (filtered.length === 0) return;
-    const toRemove = new Set(filtered);
-    let changed = true;
     const all = get().nodes;
-    while (changed) {
-      changed = false;
-      for (const it of all) {
-        if (it.parentId && toRemove.has(it.parentId) && !toRemove.has(it.id)) {
-          toRemove.add(it.id); changed = true;
+    const toRemove = collectWithDescendants(all, filtered);
+    const now = Date.now();
+    const nodes = all.map(n => toRemove.has(n.id) && !n.deletedAt
+      ? {
+          ...n,
+          deletedAt: now,
+          originalParentId: n.parentId,
+          originalX: n.x,
+          originalY: n.y,
+          parentId: null,
+          modifiedAt: now,
         }
-      }
-    }
-    // Delete blobs for removed file nodes
-    for (const n of all) {
-      if (toRemove.has(n.id) && n.blobKey) deleteBlob(n.blobKey).catch(() => {});
-    }
-    const nodes = all.filter(n => !toRemove.has(n.id));
+      : n);
     setState({
       nodes,
       selectedIds: get().selectedIds.filter(id => !toRemove.has(id)),
@@ -327,8 +389,176 @@ export const useFsStore = create<FsState>()((setState, get) => ({
   },
 
   updateTextFile: (id, content) => {
-    const nodes = get().nodes.map(n => n.id === id ? touch({ ...n, textContent: content }) : n);
+    const nodes = get().nodes.map(n => n.id === id ? touch({ ...n, textContent: content, size: new Blob([content]).size }) : n);
     setState({ nodes }); persistNodes(nodes);
+  },
+
+  updateBookmark: (id, patch) => {
+    const nodes = get().nodes.map(n => n.id === id && n.kind === 'bookmark' ? touch({ ...n, ...patch }) : n);
+    setState({ nodes }); persistNodes(nodes);
+  },
+
+  markBookmarkOpened: (id) => {
+    const nodes = get().nodes.map(n => n.id === id && n.kind === 'bookmark'
+      ? touch({ ...n, openCount: (n.openCount ?? 0) + 1, lastOpenedAt: Date.now() })
+      : n);
+    setState({ nodes }); persistNodes(nodes);
+  },
+
+  restoreItems: (ids) => {
+    const all = get().nodes;
+    const target = collectWithDescendants(all, ids);
+    const liveIds = new Set(all.filter(n => !n.deletedAt).map(n => n.id));
+    const nodes = all.map(n => {
+      if (!target.has(n.id)) return n;
+      const parentId = n.originalParentId && liveIds.has(n.originalParentId) ? n.originalParentId : ROOT_DESKTOP;
+      return {
+        ...n,
+        deletedAt: undefined,
+        parentId,
+        x: n.originalX ?? n.x,
+        y: n.originalY ?? n.y,
+        originalParentId: undefined,
+        originalX: undefined,
+        originalY: undefined,
+        modifiedAt: Date.now(),
+      };
+    });
+    setState({ nodes, selectedIds: [] }); persistNodes(nodes);
+  },
+
+  emptyRecycleBin: () => {
+    const all = get().nodes;
+    for (const n of all) {
+      if (n.deletedAt && n.blobKey) deleteBlob(n.blobKey).catch(() => {});
+    }
+    const nodes = all.filter(n => !n.deletedAt);
+    setState({ nodes, selectedIds: [] }); persistNodes(nodes);
+  },
+
+  importBookmarksHtml: (html, parentMode) => {
+    try {
+      const doc = new DOMParser().parseFromString(html, 'text/html');
+      const now = Date.now();
+      const nodes = [...get().nodes];
+      const rootParent = parentMode === 'folder'
+        ? (() => {
+            const id = crypto.randomUUID();
+            nodes.push({ id, parentId: ROOT_DESKTOP, kind: 'folder', name: 'Imported Bookmarks', x: 12, y: 12, createdAt: now, modifiedAt: now });
+            return id;
+          })()
+        : ROOT_DESKTOP;
+      let count = 0;
+      const walk = (container: Element, parentId: string) => {
+        Array.from(container.children).forEach((child) => {
+          if (child.tagName === 'DT') {
+            const h3 = child.querySelector(':scope > H3');
+            const a = child.querySelector(':scope > A') as HTMLAnchorElement | null;
+            const dl = child.querySelector(':scope > DL');
+            if (h3) {
+              const id = crypto.randomUUID();
+              nodes.push({
+                id, parentId, kind: 'folder', name: h3.textContent?.trim() || 'Folder',
+                x: 12, y: 12 + count * GRID, createdAt: now, modifiedAt: now,
+              });
+              if (dl) walk(dl, id);
+            } else if (a?.href) {
+              const url = normalizeUrl(a.getAttribute('href') || a.href);
+              nodes.push({
+                id: crypto.randomUUID(), parentId, kind: 'bookmark',
+                name: a.textContent?.trim() || url, url,
+                favicon: a.getAttribute('ICON') || getFaviconUrl(url),
+                x: 12, y: 12 + count * GRID, createdAt: now, modifiedAt: now,
+              });
+              count += 1;
+            } else if (dl) {
+              walk(dl, parentId);
+            }
+          } else if (child.tagName === 'DL') {
+            walk(child, parentId);
+          }
+        });
+      };
+      const dl = doc.querySelector('DL');
+      if (!dl) return { ok: false, count: 0, error: 'No bookmarks found in HTML export' };
+      walk(dl, rootParent);
+      const arranged = nodes.map(n => n.parentId === rootParent && n.createdAt === now ? { ...n, ...findEmptySpot(nodes, rootParent) } : n);
+      setState({ nodes: arranged, selectedIds: [] }); persistNodes(arranged);
+      return { ok: true, count };
+    } catch (e) {
+      return { ok: false, count: 0, error: (e as Error).message };
+    }
+  },
+
+  pinItem: (id) => {
+    const settings = get().settings;
+    if (settings.pinnedIds.includes(id)) return;
+    get().setSettings({ pinnedIds: [...settings.pinnedIds, id] });
+  },
+
+  unpinItem: (id) => {
+    const settings = get().settings;
+    get().setSettings({ pinnedIds: settings.pinnedIds.filter(x => x !== id) });
+  },
+
+  reorderPinned: (fromId, toId) => {
+    const pinned = [...get().settings.pinnedIds];
+    const from = pinned.indexOf(fromId);
+    const to = pinned.indexOf(toId);
+    if (from < 0 || to < 0 || from === to) return;
+    const [item] = pinned.splice(from, 1);
+    pinned.splice(to, 0, item);
+    get().setSettings({ pinnedIds: pinned });
+  },
+
+  sortFolder: (parentId, by) => {
+    const items = visibleNodes(get().nodes)
+      .filter(n => n.parentId === parentId)
+      .sort((a, b) => {
+        if (by === 'type') return a.kind.localeCompare(b.kind) || a.name.localeCompare(b.name);
+        if (by === 'created') return a.createdAt - b.createdAt;
+        return a.name.localeCompare(b.name);
+      });
+    get().moveItems(layoutItems(items));
+  },
+
+  alignFolderToGrid: (parentId) => {
+    const updates = visibleNodes(get().nodes)
+      .filter(n => n.parentId === parentId)
+      .map(n => ({ id: n.id, x: Math.round((n.x - 12) / GRID) * GRID + 12, y: Math.round((n.y - 12) / GRID) * GRID + 12 }));
+    get().moveItems(updates);
+  },
+
+  saveLayoutPreset: (name, parentId = ROOT_DESKTOP) => {
+    const layout = Object.fromEntries(visibleNodes(get().nodes).filter(n => n.parentId === parentId).map(n => [n.id, { x: n.x, y: n.y }]));
+    get().setSettings({ layoutPresets: { ...get().settings.layoutPresets, [name]: layout } });
+  },
+
+  restoreLayoutPreset: (name) => {
+    const preset = get().settings.layoutPresets[name];
+    if (!preset) return;
+    get().moveItems(Object.entries(preset).map(([id, pos]) => ({ id, x: pos.x, y: pos.y })));
+  },
+
+  saveWorkspace: (name) => {
+    const settings = get().settings;
+    const id = crypto.randomUUID();
+    const workspace = {
+      id, name,
+      nodeIds: visibleNodes(get().nodes).filter(n => n.parentId === ROOT_DESKTOP).map(n => n.id),
+      wallpaper: settings.wallpaper,
+      pinnedIds: settings.pinnedIds,
+    };
+    get().setSettings({ workspaces: [...settings.workspaces, workspace], activeWorkspaceId: id });
+  },
+
+  switchWorkspace: (id) => {
+    const workspace = get().settings.workspaces.find(w => w.id === id);
+    if (!workspace) return;
+    const patch: Partial<DesktopSettings> = { activeWorkspaceId: id };
+    if (workspace.wallpaper) patch.wallpaper = workspace.wallpaper;
+    if (workspace.pinnedIds) patch.pinnedIds = workspace.pinnedIds;
+    get().setSettings(patch);
   },
 
   exportItems: () => {

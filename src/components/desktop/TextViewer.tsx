@@ -16,8 +16,18 @@ export function TextViewer({ win }: { win: WindowState }) {
   const [dirty, setDirty] = useState(false);
 
   useEffect(() => {
-    setTitle(win.id, `${name || 'Untitled'}${dirty ? ' •' : ''} — Text`);
+    setTitle(win.id, `${name || 'Untitled'}${dirty ? ' *' : ''} - Notepad`);
   }, [name, dirty, win.id, setTitle]);
+
+  useEffect(() => {
+    if (!dirty || !node) return;
+    const id = window.setTimeout(() => {
+      updateTextFile(fileId, content);
+      if (name !== node.name) renameItem(fileId, name);
+      setDirty(false);
+    }, 900);
+    return () => window.clearTimeout(id);
+  }, [content, dirty, fileId, name, node, renameItem, updateTextFile]);
 
   useEffect(() => {
     // Sync if external changes (rare while editing)

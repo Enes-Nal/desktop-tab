@@ -1,5 +1,5 @@
 import { Clock } from './Clock';
-import { Search, LayoutGrid, FileText, FolderOpen } from 'lucide-react';
+import { Search, LayoutGrid, FileText, FolderOpen, Mail, CalendarDays, Cloud, Youtube, Settings } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { useNotesStore } from '@/store/notesStore';
@@ -7,19 +7,25 @@ import { useWMStore } from '@/store/wmStore';
 import { openFileExplorerHome } from '@/lib/appLauncher';
 import { useFsStore } from '@/store/fsStore';
 import { NodeIcon } from './NodeIcon';
+import { GOOGLE_APPS, GoogleService } from '@/lib/googleApps';
+import { activateNode } from '@/lib/appLauncher';
 
 interface Props {
   onStartClick: () => void;
   startOpen: boolean;
   onAddClick: () => void;
+  onSearchClick: () => void;
 }
 
-export function Taskbar({ onStartClick, startOpen, onAddClick }: Props) {
+export function Taskbar({ onStartClick, startOpen, onAddClick, onSearchClick }: Props) {
   const { windowOpen: notepadOpen, openWindow: openNotepad, closeWindow: closeNotepad } = useNotesStore();
   const windows = useWMStore(s => s.windows);
   const activeId = useWMStore(s => s.activeId);
   const toggleFromTaskbar = useWMStore(s => s.toggleFromTaskbar);
   const nodes = useFsStore(s => s.nodes);
+  const settings = useFsStore(s => s.settings);
+  const { reorderPinned, unpinItem } = useFsStore();
+  const pinned = settings.pinnedIds.map(id => nodes.find(n => n.id === id && !n.deletedAt)).filter(Boolean);
 
   const iconForWindow = (app: string, propsObj: Record<string, unknown>) => {
     if (app === 'file-explorer') {
@@ -32,6 +38,16 @@ export function Taskbar({ onStartClick, startOpen, onAddClick }: Props) {
       const node = nodes.find(n => n.id === fid);
       return node ? <NodeIcon node={node} size={16} /> : <FileText className="w-4 h-4" />;
     }
+    if (app === 'google-app') {
+      const service = propsObj.service as GoogleService;
+      const accent = GOOGLE_APPS[service]?.accent;
+      if (service === 'gmail') return <Mail className="w-4 h-4" style={{ color: accent }} />;
+      if (service === 'calendar') return <CalendarDays className="w-4 h-4" style={{ color: accent }} />;
+      if (service === 'drive') return <Cloud className="w-4 h-4" style={{ color: accent }} />;
+      if (service === 'youtube') return <Youtube className="w-4 h-4" style={{ color: accent }} />;
+      return <FileText className="w-4 h-4" style={{ color: accent }} />;
+    }
+    if (app === 'settings') return <Settings className="w-4 h-4" />;
     return <FileText className="w-4 h-4" />;
   };
 
@@ -53,7 +69,7 @@ export function Taskbar({ onStartClick, startOpen, onAddClick }: Props) {
       </button>
 
       <div className="hidden sm:flex items-center gap-2 h-9 px-3 rounded-sm bg-background/40 border border-border/50 w-48 cursor-text shrink-0"
-        onClick={onStartClick}
+        onClick={onSearchClick}
       >
         <Search className="w-4 h-4 text-muted-foreground" />
         <span className="text-xs text-muted-foreground">Search</span>
@@ -66,6 +82,25 @@ export function Taskbar({ onStartClick, startOpen, onAddClick }: Props) {
       >
         <FolderOpen className="w-5 h-5 text-yellow-500" />
       </button>
+
+      {pinned.map(node => (
+        <button
+          key={node!.id}
+          draggable
+          onDragStart={(e) => e.dataTransfer.setData('application/x-pinned-id', node!.id)}
+          onDragOver={(e) => { if (e.dataTransfer.types.includes('application/x-pinned-id')) e.preventDefault(); }}
+          onDrop={(e) => {
+            const from = e.dataTransfer.getData('application/x-pinned-id');
+            if (from) reorderPinned(from, node!.id);
+          }}
+          onClick={() => activateNode(node!)}
+          onContextMenu={(e) => { e.preventDefault(); unpinItem(node!.id); }}
+          className="h-9 w-9 flex items-center justify-center rounded-sm hover:bg-foreground/10 shrink-0"
+          title={`${node!.name} (right-click to unpin)`}
+        >
+          <NodeIcon node={node!} size={20} />
+        </button>
+      ))}
 
       <button
         onClick={() => (notepadOpen ? closeNotepad() : openNotepad())}

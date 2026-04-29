@@ -8,9 +8,11 @@ import { ContextMenu, MenuItem } from './ContextMenu';
 import {
   ArrowLeft, ArrowRight, ArrowUp, FolderPlus, LayoutGrid, List as ListIcon,
   Trash2, Pencil, Plus, ExternalLink, Monitor, FileText, Image as ImageIcon, FolderInput,
+  Search, Info, Pin,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { activateNode } from '@/lib/appLauncher';
+import { formatSize, nodeSize, nodeTypeLabel, searchableText } from '@/lib/fsMeta';
 
 interface Props {
   win: WindowState;
@@ -31,7 +33,7 @@ const SIDEBAR_ITEMS = [
 
 export function FileExplorer({ win }: Props) {
   const initial = (win.props.folderId as string) || ROOT_DESKTOP;
-  const { nodes, addFolder, addTextFile, removeItems, renameItem, setItemParent } = useFsStore();
+  const { nodes, addFolder, addTextFile, removeItems, renameItem, setItemParent, pinItem } = useFsStore();
   const { setProps, setTitle } = useWMStore();
 
   const [view, setView] = useState<View>((win.props.view as View) || 'grid');
@@ -43,25 +45,32 @@ export function FileExplorer({ win }: Props) {
   const [menu, setMenu] = useState<{ x: number; y: number; nodeId: string | null } | null>(null);
   const [dragHover, setDragHover] = useState<string | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
+  const [searchAll, setSearchAll] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(true);
 
   // Persist view + folder back to window props so it survives re-render
   useEffect(() => {
     setProps(win.id, { folderId: currentId, view });
   }, [currentId, view, win.id, setProps]);
 
-  const current = nodes.find(n => n.id === currentId);
+  const liveNodes = nodes.filter(n => !n.deletedAt);
+  const current = liveNodes.find(n => n.id === currentId);
   useEffect(() => {
     setTitle(win.id, current?.name || 'File Explorer');
   }, [current?.name, win.id, setTitle]);
 
   const children = useMemo(
-    () => nodes.filter(n => n.parentId === currentId).sort((a, b) => {
+    () => liveNodes
+      .filter(n => (searchAll ? !isRoot(n.id) : n.parentId === currentId))
+      .filter(n => !query.trim() || searchableText(n).includes(query.trim().toLowerCase()))
+      .sort((a, b) => {
       // folders first, then by name
       if (a.kind === 'folder' && b.kind !== 'folder') return -1;
       if (b.kind === 'folder' && a.kind !== 'folder') return 1;
       return a.name.localeCompare(b.name);
     }),
-    [nodes, currentId],
+    [liveNodes, currentId, query, searchAll],
   );
 
   const navigate = (folderId: string) => {
@@ -86,10 +95,10 @@ export function FileExplorer({ win }: Props) {
     let cur: FsNode | undefined = current;
     while (cur) {
       out.unshift(cur);
-      cur = cur.parentId ? nodes.find(n => n.id === cur!.parentId) : undefined;
+      cur = cur.parentId ? liveNodes.find(n => n.id === cur!.parentId) : undefined;
     }
     return out;
-  }, [current, nodes]);
+  }, [current, liveNodes]);
 
   // Item click / dblclick
   const onItemClick = (e: React.MouseEvent, id: string) => {
@@ -193,10 +202,20 @@ export function FileExplorer({ win }: Props) {
       } else if (e.key === 'Backspace') {
         e.preventDefault();
         goUp();
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
+        e.preventDefault();
+        (document.querySelector(`[data-explorer-search="${win.id}"]`) as HTMLInputElement | null)?.focus();
+      } else if (e.altKey && e.key === 'ArrowLeft') {
+        e.preventDefault();
+        back();
+      } else if (e.altKey && e.key === 'ArrowRight') {
+        e.preventDefault();
+        forward();
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isActive, selected, nodes, removeItems, current?.id]);
 
   // Build context menu
@@ -220,6 +239,12 @@ export function FileExplorer({ win }: Props) {
         });
       }
       items.push({ label: '', separator: true, onClick: () => {} });
+      items.push({
+        label: 'Pin to taskbar',
+        icon: <Pin className="w-4 h-4" />,
+        disabled: isRoot(node.id),
+        onClick: () => pinItem(node.id),
+      });
       items.push({
         label: 'Rename',
         icon: <Pencil className="w-4 h-4" />,
@@ -281,6 +306,7 @@ export function FileExplorer({ win }: Props) {
         <div className="flex-1" />
         <ToolbarBtn onClick={() => setView('grid')} active={view === 'grid'} title="Icon view"><LayoutGrid className="w-4 h-4" /></ToolbarBtn>
         <ToolbarBtn onClick={() => setView('list')} active={view === 'list'} title="List view"><ListIcon className="w-4 h-4" /></ToolbarBtn>
+        <ToolbarBtn onClick={() => setDetailsOpen(!detailsOpen)} active={detailsOpen} title="Details pane"><Info className="w-4 h-4" /></ToolbarBtn>
       </div>
 
       {/* Breadcrumbs */}
@@ -299,6 +325,21 @@ export function FileExplorer({ win }: Props) {
             </button>
           </div>
         ))}
+      </div>
+
+      <div className="h-9 border-b border-border bg-muted/20 flex items-center px-2 gap-2 shrink-0">
+        <Search className="w-4 h-4 text-muted-foreground" />
+        <input
+          data-explorer-search={win.id}
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search"
+          className="h-7 flex-1 min-w-0 px-2 text-xs bg-background/70 border border-border rounded-sm outline-none focus:ring-1 focus:ring-primary"
+        />
+        <label className="flex items-center gap-1 text-xs text-muted-foreground shrink-0">
+          <input type="checkbox" checked={searchAll} onChange={(e) => setSearchAll(e.target.checked)} />
+          All folders
+        </label>
       </div>
 
       {/* Body */}
@@ -398,6 +439,9 @@ export function FileExplorer({ win }: Props) {
             </table>
           )}
         </div>
+        {detailsOpen && (
+          <DetailsPane node={selected.length === 1 ? liveNodes.find(n => n.id === selected[0]) : null} count={selected.length} />
+        )}
       </div>
 
       {/* Status bar */}
@@ -486,11 +530,7 @@ function GridItem(p: ItemViewProps) {
 }
 
 function ListRow(p: Omit<ItemViewProps, 'isDragging'>) {
-  const typeLabel = p.node.kind === 'folder' ? 'Folder'
-    : p.node.kind === 'bookmark' ? 'Bookmark'
-    : p.node.mimeType === 'text/plain' ? 'Text file'
-    : p.node.mimeType?.startsWith('image/') ? 'Image'
-    : 'File';
+  const typeLabel = nodeTypeLabel(p.node);
   return (
     <tr
       draggable={!p.renaming}
@@ -521,9 +561,7 @@ function ListRow(p: Omit<ItemViewProps, 'isDragging'>) {
       </td>
       <td className="px-2 py-1.5 text-muted-foreground">{typeLabel}</td>
       <td className="px-2 py-1.5 text-muted-foreground">{new Date(p.node.modifiedAt).toLocaleString()}</td>
-      <td className="px-3 py-1.5 text-right text-muted-foreground">
-        {p.node.size ? formatSize(p.node.size) : p.node.kind === 'file' && p.node.textContent !== undefined ? formatSize(p.node.textContent.length) : '—'}
-      </td>
+      <td className="px-3 py-1.5 text-right text-muted-foreground">{formatSize(nodeSize(p.node))}</td>
     </tr>
   );
 }
@@ -552,16 +590,44 @@ function RenameInput({ initial, onDone, onCancel, className }: { initial: string
   );
 }
 
+function DetailsPane({ node, count }: { node: FsNode | null | undefined; count: number }) {
+  return (
+    <div className="w-56 border-l border-border bg-muted/20 p-3 text-xs overflow-auto shrink-0">
+      <div className="font-medium mb-3">Details</div>
+      {!node ? (
+        <div className="text-muted-foreground">{count > 1 ? `${count} items selected` : 'Select an item'}</div>
+      ) : (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2 min-w-0">
+            <NodeIcon node={node} size={28} />
+            <div className="font-medium truncate">{node.name || 'Untitled'}</div>
+          </div>
+          <Detail label="Type" value={nodeTypeLabel(node)} />
+          {node.url && <Detail label="URL" value={node.url} />}
+          <Detail label="Size" value={formatSize(nodeSize(node))} />
+          <Detail label="Created" value={new Date(node.createdAt).toLocaleString()} />
+          <Detail label="Modified" value={new Date(node.modifiedAt).toLocaleString()} />
+          {node.tags?.length ? <Detail label="Tags" value={node.tags.join(', ')} /> : null}
+          {node.notes ? <Detail label="Notes" value={node.notes} /> : null}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Detail({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</div>
+      <div className="break-words">{value}</div>
+    </div>
+  );
+}
+
 function FolderIcon() {
   return (
     <svg viewBox="0 0 24 24" className="w-4 h-4" fill="hsl(45 90% 60%)" stroke="hsl(45 90% 45%)" strokeWidth="0.6">
       <path d="M3 6a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
     </svg>
   );
-}
-
-function formatSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }

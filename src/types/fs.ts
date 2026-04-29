@@ -19,11 +19,19 @@ export interface FsNode {
   y: number;
   createdAt: number;
   modifiedAt: number;
+  deletedAt?: number;
+  originalParentId?: string | null;
+  originalX?: number;
+  originalY?: number;
 
   // Bookmark
   url?: string;
   favicon?: string;
   customIcon?: string;
+  notes?: string;
+  tags?: string[];
+  openCount?: number;
+  lastOpenedAt?: number;
 
   // File
   mimeType?: string;             // 'text/plain', 'image/png', 'image/jpeg', etc.
@@ -33,9 +41,11 @@ export interface FsNode {
 }
 
 export type Theme = 'light' | 'dark';
+export type WindowTheme = 'classic-95' | 'glassy-vista' | 'neon-cyberdeck' | 'cozy-paper' | 'minimal-mono';
 
 export interface DesktopSettings {
   theme: Theme;
+  windowTheme: WindowTheme;
   fontFamily: string;
   wallpaper: string;
   wallpapers: string[];
@@ -43,6 +53,27 @@ export interface DesktopSettings {
   wallpaperShuffleMinutes: number;
   wallpaperLastShuffleAt: number;
   snapToGrid: boolean;
+  autoArrange: boolean;
+  pinnedIds: string[];
+  layoutPresets: Record<string, Record<string, { x: number; y: number }>>;
+  workspaces: Workspace[];
+  activeWorkspaceId: string;
+  googleAccounts: GoogleAccountShortcut[];
+}
+
+export interface Workspace {
+  id: string;
+  name: string;
+  nodeIds: string[];
+  wallpaper?: string;
+  pinnedIds?: string[];
+}
+
+export interface GoogleAccountShortcut {
+  id: string;
+  label: string;
+  email?: string;
+  gmailUrl: string;
 }
 
 export const GRID = 96;

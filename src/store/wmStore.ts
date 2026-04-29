@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-export type AppKind = 'file-explorer' | 'text-viewer' | 'image-viewer' | 'notepad';
+export type AppKind = 'file-explorer' | 'text-viewer' | 'image-viewer' | 'notepad' | 'recycle-bin' | 'google-app' | 'settings';
 
 export interface WindowState {
   id: string;
@@ -30,8 +30,10 @@ interface WMState {
   close: (id: string) => void;
   focus: (id: string) => void;
   minimize: (id: string) => void;
+  minimizeOthers: (id: string) => void;
   toggleMaximize: (id: string) => void;
-  setGeom: (id: string, g: Partial<Pick<WindowState, 'x' | 'y' | 'w' | 'h'>>) => void;
+  snapWindow: (id: string, zone: 'left' | 'right' | 'top' | 'bottom') => void;
+  setGeom: (id: string, g: Partial<Pick<WindowState, 'x' | 'y' | 'w' | 'h' | 'maximized' | 'prevGeom'>>) => void;
   setProps: (id: string, props: Record<string, unknown>) => void;
   setTitle: (id: string, title: string) => void;
   // For taskbar icon click: focus or restore minimized
@@ -99,6 +101,14 @@ export const useWMStore = create<WMState>()(
         });
       },
 
+      minimizeOthers: (id) => {
+        setState({
+          windows: get().windows.map(w => w.id === id ? { ...w, minimized: false } : { ...w, minimized: true }),
+          activeId: id,
+        });
+        get().focus(id);
+      },
+
       toggleMaximize: (id) => {
         const win = get().windows.find(w => w.id === id);
         if (!win) return;
@@ -116,6 +126,30 @@ export const useWMStore = create<WMState>()(
             } : w),
           });
         }
+        get().focus(id);
+      },
+
+      snapWindow: (id, zone) => {
+        const win = get().windows.find(w => w.id === id);
+        if (!win) return;
+        const fullW = window.innerWidth;
+        const fullH = window.innerHeight - TASKBAR_H;
+        const prevGeom = win.maximized && win.prevGeom ? win.prevGeom : { x: win.x, y: win.y, w: win.w, h: win.h };
+        const geom = zone === 'left'
+          ? { x: 0, y: 0, w: Math.round(fullW / 2), h: fullH }
+          : zone === 'right'
+            ? { x: Math.round(fullW / 2), y: 0, w: Math.ceil(fullW / 2), h: fullH }
+            : zone === 'bottom'
+              ? { x: 0, y: Math.round(fullH / 2), w: fullW, h: Math.ceil(fullH / 2) }
+              : { x: 0, y: 0, w: fullW, h: fullH };
+        setState({
+          windows: get().windows.map(w => w.id === id ? {
+            ...w,
+            ...geom,
+            maximized: zone === 'top',
+            prevGeom,
+          } : w),
+        });
         get().focus(id);
       },
 

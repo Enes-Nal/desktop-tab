@@ -9,12 +9,16 @@ import { StartMenu } from './StartMenu';
 import { NotepadWindow } from './NotepadWindow';
 import { IconUrlDialog } from './IconUrlDialog';
 import { WindowHost } from './WindowHost';
+import { CommandPalette } from './CommandPalette';
+import { BookmarkImportDialog } from './BookmarkImportDialog';
+import { BookmarkPropertiesDialog } from './BookmarkPropertiesDialog';
 import { FsNode, GRID, ICON_W, ICON_H, ROOT_DESKTOP, isRoot } from '@/types/fs';
-import { activateNode, openFileExplorerAt } from '@/lib/appLauncher';
+import { activateNode, openFileExplorerAt, openSettingsApp } from '@/lib/appLauncher';
 import { applyDesktopFont } from '@/lib/font';
 import {
   ExternalLink, Pencil, Trash2, Plus, RefreshCw, FolderPlus,
   Image as ImageIcon, FolderInput, Link2, FileText as FileTextIcon, FolderOpen,
+  Search, Pin, Settings, Rows3, Save, RotateCcw, Briefcase,
 } from 'lucide-react';
 
 type Menu =
@@ -23,6 +27,22 @@ type Menu =
   | null;
 
 const TASKBAR_H = 48;
+const BASE_VIEWPORT = { width: 1280, height: 760 };
+
+const getViewportSize = () => ({
+  width: window.innerWidth,
+  height: Math.max(1, window.innerHeight - TASKBAR_H),
+});
+
+const getIconScale = (viewport: { width: number; height: number }) => {
+  const scale = Math.min(viewport.width / BASE_VIEWPORT.width, viewport.height / BASE_VIEWPORT.height);
+  return Math.max(0.72, Math.min(1.12, scale));
+};
+
+const getIconBox = (scale: number) => ({
+  width: Math.round(ICON_W * scale),
+  height: Math.round(ICON_H * scale),
+});
 
 export function Desktop() {
   const nodes = useFsStore(s => s.nodes);
@@ -33,9 +53,15 @@ export function Desktop() {
     addBookmark, addFolder, addTextFile,
     removeItems, renameItem, moveItems, setItemParent, setCustomIcon,
     setSelected, toggleSelected, clearSelection, setSettings,
+    sortFolder, alignFolderToGrid, saveLayoutPreset, restoreLayoutPreset, pinItem, saveWorkspace,
   } = useFsStore();
 
-  const desktopNodes = nodes.filter(n => n.parentId === ROOT_DESKTOP);
+  const activeWorkspace = settings.workspaces.find(w => w.id === settings.activeWorkspaceId);
+  const desktopNodes = nodes.filter(n =>
+    !n.deletedAt &&
+    n.parentId === ROOT_DESKTOP &&
+    (!activeWorkspace || activeWorkspace.nodeIds.includes(n.id))
+  );
 
   const [menu, setMenu] = useState<Menu>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -44,7 +70,12 @@ export function Desktop() {
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
   const [iconUploadId, setIconUploadId] = useState<string | null>(null);
   const [iconUrlDialogId, setIconUrlDialogId] = useState<string | null>(null);
+  const [propertiesId, setPropertiesId] = useState<string | null>(null);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [viewport, setViewport] = useState(getViewportSize);
   const iconFileRef = useRef<HTMLInputElement>(null);
+  const lastViewportRef = useRef(viewport);
 
   const drag = useRef<{
     ids: string[];
@@ -54,10 +85,16 @@ export function Desktop() {
   } | null>(null);
   const selBoxRef = useRef<{ startX: number; startY: number; curX: number; curY: number; active: boolean } | null>(null);
   const [selBox, setSelBox] = useState<typeof selBoxRef.current>(null);
+  const iconScale = getIconScale(viewport);
+  const iconBox = getIconBox(iconScale);
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', settings.theme === 'dark');
   }, [settings.theme]);
+
+  useEffect(() => {
+    document.documentElement.dataset.windowTheme = settings.windowTheme;
+  }, [settings.windowTheme]);
 
   useEffect(() => {
     applyDesktopFont(settings.fontFamily);
@@ -87,6 +124,54 @@ export function Desktop() {
     setSettings,
   ]);
 
+  useEffect(() => {
+    const onResize = () => {
+      const previous = lastViewportRef.current;
+      const next = getViewportSize();
+      const previousScale = getIconScale(previous);
+      const nextScale = getIconScale(next);
+      const previousBox = getIconBox(previousScale);
+      const nextBox = getIconBox(nextScale);
+      const previousMaxX = Math.max(1, previous.width - previousBox.width);
+      const previousMaxY = Math.max(1, previous.height - previousBox.height);
+      const nextMaxX = Math.max(1, next.width - nextBox.width);
+      const nextMaxY = Math.max(1, next.height - nextBox.height);
+
+      setViewport(next);
+      lastViewportRef.current = next;
+
+      const currentNodes = useFsStore.getState().nodes.filter(n => !n.deletedAt && n.parentId === ROOT_DESKTOP);
+      if (currentNodes.length === 0) return;
+
+      moveItems(currentNodes.map(node => ({
+        id: node.id,
+        x: Math.round(Math.max(0, Math.min(nextMaxX, (node.x / previousMaxX) * nextMaxX))),
+        y: Math.round(Math.max(0, Math.min(nextMaxY, (node.y / previousMaxY) * nextMaxY))),
+      })));
+    };
+
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, [moveItems]);
+
+  useEffect(() => {
+    if (!hydrated || desktopNodes.length === 0) return;
+    const maxX = Math.max(0, viewport.width - iconBox.width);
+    const maxY = Math.max(0, viewport.height - iconBox.height);
+    const updates = desktopNodes
+      .map(node => ({
+        id: node.id,
+        x: Math.round(Math.max(0, Math.min(maxX, node.x))),
+        y: Math.round(Math.max(0, Math.min(maxY, node.y))),
+      }))
+      .filter(next => {
+        const node = desktopNodes.find(item => item.id === next.id);
+        return node && (node.x !== next.x || node.y !== next.y);
+      });
+
+    if (updates.length) moveItems(updates);
+  }, [desktopNodes, hydrated, iconBox.height, iconBox.width, moveItems, viewport.height, viewport.width]);
+
   const snap = useCallback((x: number, y: number) => {
     if (!settings.snapToGrid) return { x, y };
     return {
@@ -95,10 +180,10 @@ export function Desktop() {
     };
   }, [settings.snapToGrid]);
 
-  const clampPos = (x: number, y: number) => ({
-    x: Math.max(0, Math.min(window.innerWidth - ICON_W, x)),
-    y: Math.max(0, Math.min(window.innerHeight - TASKBAR_H - ICON_H, y)),
-  });
+  const clampPos = useCallback((x: number, y: number) => ({
+    x: Math.max(0, Math.min(window.innerWidth - iconBox.width, x)),
+    y: Math.max(0, Math.min(window.innerHeight - TASKBAR_H - iconBox.height, y)),
+  }), [iconBox.height, iconBox.width]);
 
   const onIconMouseDown = (e: React.MouseEvent, id: string) => {
     if (e.button !== 0) return;
@@ -195,7 +280,7 @@ export function Desktop() {
         const minY = Math.min(next.startY, next.curY);
         const maxY = Math.max(next.startY, next.curY);
         const ids = desktopNodes
-          .filter(b => b.x < maxX && b.x + ICON_W > minX && b.y < maxY && b.y + ICON_H > minY)
+          .filter(b => b.x < maxX && b.x + iconBox.width > minX && b.y < maxY && b.y + iconBox.height > minY)
           .map(b => b.id);
         setSelected(ids);
       }
@@ -241,7 +326,7 @@ export function Desktop() {
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
     };
-  }, [nodes, desktopNodes, dropTargetId, moveItems, setSelected, snap, settings.snapToGrid, setItemParent, addFolder]);
+  }, [nodes, desktopNodes, dropTargetId, iconBox.height, iconBox.width, clampPos, moveItems, setSelected, snap, settings.snapToGrid, setItemParent, addFolder]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -250,7 +335,20 @@ export function Desktop() {
       if (tag === 'INPUT' || tag === 'TEXTAREA') return;
       const editable = (e.target as HTMLElement)?.isContentEditable;
       if (editable) return;
-      if (e.key === 'Delete' && selectedIds.length) removeItems(selectedIds);
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setPaletteOpen(true);
+      } else if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'n') {
+        e.preventDefault();
+        const id = addFolder({ parentId: ROOT_DESKTOP });
+        setSelected([id]);
+        setRenamingId(id);
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'n') {
+        e.preventDefault();
+        const id = addTextFile({ name: 'New File.txt', parentId: ROOT_DESKTOP });
+        setSelected([id]);
+        setRenamingId(id);
+      } else if (e.key === 'Delete' && selectedIds.length) removeItems(selectedIds);
       else if (e.key === 'F2' && selectedIds.length === 1 && !isRoot(selectedIds[0])) setRenamingId(selectedIds[0]);
       else if (e.key === 'Enter' && selectedIds.length) {
         nodes.filter(b => selectedIds.includes(b.id)).forEach(activateNode);
@@ -300,6 +398,12 @@ export function Desktop() {
 
     if (isBookmark) {
       out.push({
+        label: 'Properties',
+        icon: <Settings className="w-4 h-4" />,
+        disabled: multi,
+        onClick: () => setPropertiesId(id),
+      });
+      out.push({
         label: 'Upload icon…',
         icon: <ImageIcon className="w-4 h-4" />,
         disabled: multi,
@@ -331,6 +435,12 @@ export function Desktop() {
 
     if (!isRoot(id)) {
       out.push({ label: '', separator: true, onClick: () => {} });
+      out.push({
+        label: 'Pin to taskbar',
+        icon: <Pin className="w-4 h-4" />,
+        disabled: multi,
+        onClick: () => pinItem(id),
+      });
       out.push({
         label: 'Rename',
         icon: <Pencil className="w-4 h-4" />,
@@ -377,9 +487,65 @@ export function Desktop() {
       },
       { label: '', separator: true, onClick: () => {} },
       {
+        label: 'Command palette',
+        icon: <Search className="w-4 h-4" />,
+        onClick: () => setPaletteOpen(true),
+      },
+      {
+        label: 'Import browser bookmarks',
+        icon: <FolderInput className="w-4 h-4" />,
+        onClick: () => setImportOpen(true),
+      },
+      {
+        label: 'Recycle Bin',
+        icon: <Trash2 className="w-4 h-4" />,
+        onClick: () => useWMStore.getState().open({ app: 'recycle-bin', title: 'Recycle Bin', w: 620, h: 440 }),
+      },
+      {
         label: 'Open File Explorer',
         icon: <FolderOpen className="w-4 h-4" />,
         onClick: () => openFileExplorerAt(ROOT_DESKTOP),
+      },
+      {
+        label: 'Settings',
+        icon: <Settings className="w-4 h-4" />,
+        onClick: openSettingsApp,
+      },
+      { label: '', separator: true, onClick: () => {} },
+      {
+        label: 'Sort by name',
+        icon: <Rows3 className="w-4 h-4" />,
+        onClick: () => sortFolder(ROOT_DESKTOP, 'name'),
+      },
+      {
+        label: 'Sort by type',
+        icon: <Rows3 className="w-4 h-4" />,
+        onClick: () => sortFolder(ROOT_DESKTOP, 'type'),
+      },
+      {
+        label: 'Sort by date created',
+        icon: <Rows3 className="w-4 h-4" />,
+        onClick: () => sortFolder(ROOT_DESKTOP, 'created'),
+      },
+      {
+        label: 'Align to grid',
+        icon: <RefreshCw className="w-4 h-4" />,
+        onClick: () => alignFolderToGrid(ROOT_DESKTOP),
+      },
+      {
+        label: 'Save layout preset',
+        icon: <Save className="w-4 h-4" />,
+        onClick: () => saveLayoutPreset(`Desktop ${new Date().toLocaleTimeString()}`),
+      },
+      ...Object.keys(settings.layoutPresets).slice(-4).map((name): MenuItem => ({
+        label: `Restore ${name}`,
+        icon: <RotateCcw className="w-4 h-4" />,
+        onClick: () => restoreLayoutPreset(name),
+      })),
+      {
+        label: 'Save workspace',
+        icon: <Briefcase className="w-4 h-4" />,
+        onClick: () => saveWorkspace(`Workspace ${settings.workspaces.length + 1}`),
       },
       {
         label: settings.snapToGrid ? 'Disable snap to grid' : 'Enable snap to grid',
@@ -401,7 +567,7 @@ export function Desktop() {
 
   return (
     <div
-      className="fixed inset-0 overflow-hidden"
+      className="fixed inset-0 overflow-hidden desktop-shell"
       onMouseDown={onDesktopMouseDown}
       onContextMenu={onDesktopContextMenu}
     >
@@ -423,6 +589,7 @@ export function Desktop() {
             selected={selectedIds.includes(node.id)}
             isRenaming={renamingId === node.id}
             isDropTarget={dropTargetId === node.id}
+            scale={iconScale}
             onMouseDown={onIconMouseDown}
             onContextMenu={onIconContextMenu}
             onActivate={activateNode}
@@ -457,6 +624,7 @@ export function Desktop() {
         startOpen={startOpen}
         onStartClick={() => setStartOpen(o => !o)}
         onAddClick={() => setDialogOpen(true)}
+        onSearchClick={() => setPaletteOpen(true)}
       />
 
       {menu && (
@@ -475,6 +643,21 @@ export function Desktop() {
           name: d.name, url: d.url, favicon: d.favicon,
           customIcon: d.customIcon, parentId: ROOT_DESKTOP,
         })}
+      />
+
+      <CommandPalette
+        open={paletteOpen}
+        onClose={() => setPaletteOpen(false)}
+        onAddBookmark={() => setDialogOpen(true)}
+        onImport={() => setImportOpen(true)}
+        onWallpaper={() => setSettings({ wallpaperShuffleEnabled: !settings.wallpaperShuffleEnabled })}
+      />
+
+      <BookmarkImportDialog open={importOpen} onClose={() => setImportOpen(false)} />
+
+      <BookmarkPropertiesDialog
+        node={propertiesId ? nodes.find(n => n.id === propertiesId) ?? null : null}
+        onClose={() => setPropertiesId(null)}
       />
 
       <IconUrlDialog

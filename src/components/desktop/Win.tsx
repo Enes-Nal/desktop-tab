@@ -1,4 +1,4 @@
-import { useEffect, useRef, ReactNode } from 'react';
+import { useEffect, useRef, useState, ReactNode, CSSProperties } from 'react';
 import { useWMStore, WindowState } from '@/store/wmStore';
 import { Minus, Square, X, Copy } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -13,13 +13,33 @@ interface Props {
 }
 
 const TASKBAR_H = 48;
+type SnapZone = 'left' | 'right' | 'top' | 'bottom';
+
+const snapZoneFromPoint = (x: number, y: number): SnapZone | null => {
+  const margin = 18;
+  if (y <= margin) return 'top';
+  if (x <= margin) return 'left';
+  if (x >= window.innerWidth - margin) return 'right';
+  if (y >= window.innerHeight - TASKBAR_H - margin) return 'bottom';
+  return null;
+};
+
+const snapPreviewStyle = (zone: SnapZone): CSSProperties => {
+  const h = window.innerHeight - TASKBAR_H;
+  const halfW = Math.round(window.innerWidth / 2);
+  if (zone === 'left') return { left: 8, top: 8, width: halfW - 12, height: h - 16 };
+  if (zone === 'right') return { left: halfW + 4, top: 8, width: halfW - 12, height: h - 16 };
+  if (zone === 'bottom') return { left: 8, top: Math.round(h / 2) + 4, width: window.innerWidth - 16, height: Math.ceil(h / 2) - 12 };
+  return { left: 8, top: 8, width: window.innerWidth - 16, height: h - 16 };
+};
 
 export function Win({ win, icon, toolbar, children, minWidth = 360, minHeight = 220 }: Props) {
-  const { focus, close, minimize, toggleMaximize, setGeom, activeId } = useWMStore();
+  const { focus, close, minimize, minimizeOthers, toggleMaximize, snapWindow, setGeom, activeId } = useWMStore();
   const isActive = activeId === win.id;
 
-  const dragRef = useRef<{ ox: number; oy: number; sx: number; sy: number } | null>(null);
+  const dragRef = useRef<{ ox: number; oy: number; sx: number; sy: number; shake: Array<{ x: number; t: number }>; lastDir: number; turns: number } | null>(null);
   const resizeRef = useRef<{ ow: number; oh: number; sx: number; sy: number; ox: number; oy: number; dir: string } | null>(null);
+  const [snapPreview, setSnapPreview] = useState<SnapZone | null>(null);
 
   useEffect(() => {
     const onMove = (e: MouseEvent) => {
@@ -27,7 +47,21 @@ export function Win({ win, icon, toolbar, children, minWidth = 360, minHeight = 
         const d = dragRef.current;
         const x = Math.max(-win.w + 80, Math.min(window.innerWidth - 80, d.ox + e.clientX - d.sx));
         const y = Math.max(0, Math.min(window.innerHeight - 40 - TASKBAR_H, d.oy + e.clientY - d.sy));
-        setGeom(win.id, { x, y });
+        const zone = snapZoneFromPoint(e.clientX, e.clientY);
+        setSnapPreview(zone);
+        const now = performance.now();
+        d.shake = [...d.shake.filter(point => now - point.t < 420), { x: e.clientX, t: now }];
+        const dx = d.shake.length > 1 ? e.clientX - d.shake[d.shake.length - 2].x : 0;
+        const dir = Math.sign(dx);
+        if (dir !== 0 && d.lastDir !== 0 && dir !== d.lastDir && Math.abs(dx) > 8) d.turns += 1;
+        if (dir !== 0) d.lastDir = dir;
+        const spread = Math.max(...d.shake.map(point => point.x)) - Math.min(...d.shake.map(point => point.x));
+        if (d.turns >= 4 && spread > 90) {
+          minimizeOthers(win.id);
+          d.turns = 0;
+          d.shake = [];
+        }
+        setGeom(win.id, { x, y, maximized: false });
       }
       if (resizeRef.current) {
         const r = resizeRef.current;
@@ -48,14 +82,19 @@ export function Win({ win, icon, toolbar, children, minWidth = 360, minHeight = 
         setGeom(win.id, next);
       }
     };
-    const onUp = () => { dragRef.current = null; resizeRef.current = null; };
+    const onUp = () => {
+      if (dragRef.current && snapPreview) snapWindow(win.id, snapPreview);
+      dragRef.current = null;
+      resizeRef.current = null;
+      setSnapPreview(null);
+    };
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
     return () => {
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
     };
-  }, [win.id, win.w, setGeom, minWidth, minHeight]);
+  }, [win.id, win.w, setGeom, minWidth, minHeight, minimizeOthers, snapPreview, snapWindow]);
 
   if (win.minimized) return null;
 
@@ -70,28 +109,39 @@ export function Win({ win, icon, toolbar, children, minWidth = 360, minHeight = 
   };
 
   return (
-    <div
-      data-window-root
-      className={cn(
-        'fixed flex flex-col rounded-md overflow-hidden border bg-card/95 backdrop-blur-xl animate-scale-in',
-        isActive ? 'border-primary/50 shadow-2xl' : 'border-border shadow-lg',
+    <>
+      {snapPreview && (
+        <div
+          className="snap-preview pointer-events-none fixed z-[999]"
+          style={snapPreviewStyle(snapPreview)}
+        />
       )}
-      style={{
-        left: win.x, top: win.y, width: win.w, height: win.h, zIndex: win.z,
-      }}
-      onMouseDown={() => focus(win.id)}
-      onContextMenu={(e) => e.stopPropagation()}
-    >
+      <div
+        data-window-root
+        className={cn(
+          'os-window fixed flex flex-col rounded-md overflow-hidden border bg-card/95 backdrop-blur-xl animate-scale-in',
+          isActive ? 'is-active border-primary/50 shadow-2xl' : 'border-border shadow-lg',
+        )}
+        style={{
+          left: win.x, top: win.y, width: win.w, height: win.h, zIndex: win.z,
+        }}
+        onMouseDown={() => focus(win.id)}
+        onContextMenu={(e) => e.stopPropagation()}
+      >
       {/* Title bar */}
       <div
         className={cn(
-          'h-9 border-b border-border flex items-center justify-between select-none shrink-0',
+          'os-titlebar h-9 border-b border-border flex items-center justify-between select-none shrink-0',
           isActive ? 'bg-card' : 'bg-muted/60',
           !win.maximized && 'cursor-grab active:cursor-grabbing',
         )}
         onMouseDown={(e) => {
-          if (e.button !== 0 || win.maximized) return;
-          dragRef.current = { ox: win.x, oy: win.y, sx: e.clientX, sy: e.clientY };
+          if (e.button !== 0) return;
+          const origin = win.maximized && win.prevGeom
+            ? { x: Math.max(0, e.clientX - win.prevGeom.w / 2), y: 0, w: win.prevGeom.w, h: win.prevGeom.h }
+            : { x: win.x, y: win.y, w: win.w, h: win.h };
+          if (win.maximized) setGeom(win.id, { ...origin, maximized: false, prevGeom: undefined });
+          dragRef.current = { ox: origin.x, oy: origin.y, sx: e.clientX, sy: e.clientY, shake: [{ x: e.clientX, t: performance.now() }], lastDir: 0, turns: 0 };
         }}
         onDoubleClick={() => toggleMaximize(win.id)}
       >
@@ -148,6 +198,7 @@ export function Win({ win, icon, toolbar, children, minWidth = 360, minHeight = 
           />
         </>
       )}
-    </div>
+      </div>
+    </>
   );
 }

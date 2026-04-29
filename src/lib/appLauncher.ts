@@ -1,6 +1,8 @@
 import { FsNode, ROOT_DOCUMENTS, ROOT_PICTURES, ROOT_DESKTOP } from '@/types/fs';
 import { useWMStore } from '@/store/wmStore';
 import { useFsStore } from '@/store/fsStore';
+import { GOOGLE_APPS, GoogleService } from '@/lib/googleApps';
+import { toast } from 'sonner';
 
 function openExternalUrl(url: string) {
   window.location.assign(url);
@@ -8,6 +10,7 @@ function openExternalUrl(url: string) {
 
 // Open a node with the appropriate app
 export function activateNode(node: FsNode) {
+  if (node.deletedAt) return;
   const wm = useWMStore.getState();
   if (node.kind === 'folder') {
     wm.open({
@@ -19,6 +22,7 @@ export function activateNode(node: FsNode) {
     return;
   }
   if (node.kind === 'bookmark' && node.url) {
+    useFsStore.getState().markBookmarkOpened(node.id);
     openExternalUrl(node.url);
     return;
   }
@@ -26,7 +30,7 @@ export function activateNode(node: FsNode) {
     if (node.mimeType === 'text/plain') {
       wm.open({
         app: 'text-viewer',
-        title: node.name || 'Text',
+        title: `${node.name || 'Text'} - Notepad`,
         props: { fileId: node.id },
         w: 640, h: 480,
       });
@@ -45,7 +49,7 @@ export function activateNode(node: FsNode) {
 }
 
 export function openFileExplorerAt(folderId: string) {
-  const node = useFsStore.getState().nodes.find(n => n.id === folderId);
+  const node = useFsStore.getState().nodes.find(n => n.id === folderId && !n.deletedAt);
   useWMStore.getState().open({
     app: 'file-explorer',
     title: node?.name || 'File Explorer',
@@ -56,6 +60,39 @@ export function openFileExplorerAt(folderId: string) {
 
 export function openFileExplorerHome() {
   openFileExplorerAt(ROOT_DESKTOP);
+}
+
+export function openSettingsApp() {
+  useWMStore.getState().open({
+    app: 'settings',
+    title: 'Settings',
+    w: 760,
+    h: 620,
+    singleton: true,
+  });
+}
+
+export function openGoogleApp(service: GoogleService, opts: { url?: string; accountId?: string; accountIndex?: number } = {}) {
+  const app = GOOGLE_APPS[service];
+  const url = opts.url || app.url;
+  useWMStore.getState().open({
+    app: 'google-app',
+    title: app.name,
+    props: { service, url, accountId: opts.accountId, accountIndex: opts.accountIndex },
+    w: service === 'gmail' ? 760 : 840,
+    h: service === 'gmail' ? 520 : 560,
+    singleton: service !== 'gmail',
+  });
+  toast.success(`Opening ${app.name}`);
+  if (service === 'gmail') toast.message('Gmail may block embedded viewing', {
+    description: 'Use Open externally from the Gmail window if the page does not load.',
+  });
+}
+
+export function openGmailAccount(accountId: string) {
+  const account = useFsStore.getState().settings.googleAccounts.find(item => item.id === accountId);
+  if (!account) return;
+  openGoogleApp('gmail', { url: account.gmailUrl, accountId });
 }
 
 export const KNOWN_FOLDERS = [ROOT_DESKTOP, ROOT_DOCUMENTS, ROOT_PICTURES];
