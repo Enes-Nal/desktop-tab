@@ -161,7 +161,7 @@ export function SettingsWindow({ win }: { win: WindowState }) {
         <Tabs defaultValue="personalization" className="mx-auto w-full max-w-5xl">
           <div className="w-full">
             <main className="min-w-0">
-              <TabsList className="mb-3 grid h-auto w-full grid-cols-2 gap-1 rounded-md bg-muted/70 p-1 sm:grid-cols-4">
+              <TabsList className="mb-3 grid h-auto w-full grid-cols-2 gap-1 rounded-md bg-muted/70 p-1">
                 {SETTINGS_TABS.map(tab => (
                   <TabsTrigger key={tab.id} value={tab.id} className="min-w-0 px-2 text-xs">
                     {tab.label}
@@ -188,7 +188,7 @@ export function SettingsWindow({ win }: { win: WindowState }) {
                       <Label className="mb-2 flex items-center gap-2 text-sm">
                         <Palette className="w-4 h-4" /> Window theme
                       </Label>
-                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      <div className="grid grid-cols-1 gap-2">
                         {WINDOW_THEMES.map(theme => (
                           <button
                             key={theme.id}
@@ -220,7 +220,7 @@ export function SettingsWindow({ win }: { win: WindowState }) {
                       <Label className="mb-2 flex items-center gap-2 text-sm">
                         <Type className="w-4 h-4" /> Font
                       </Label>
-                      <div className="flex min-w-0 flex-col gap-2 sm:flex-row">
+                      <div className="flex min-w-0 flex-col gap-2">
                         <Input
                           list="google-fonts"
                           placeholder="Search Google Fonts"
@@ -240,7 +240,7 @@ export function SettingsWindow({ win }: { win: WindowState }) {
                           type="button"
                           variant="outline"
                           size="sm"
-                          className="h-9 shrink-0"
+                          className="h-9 shrink-0 justify-center"
                           disabled={!fontQuery.trim() || !GOOGLE_FONTS.includes(fontQuery.trim() as typeof GOOGLE_FONTS[number])}
                           onClick={() => setSettings({ fontFamily: fontQuery.trim() })}
                         >
@@ -272,7 +272,7 @@ export function SettingsWindow({ win }: { win: WindowState }) {
 
                 <section className="rounded-md border border-border/70 bg-card/75 p-3 shadow-sm backdrop-blur sm:p-4">
                   <h2 className="mb-3 text-sm font-medium">Wallpaper</h2>
-                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                  <div className="grid grid-cols-3 gap-2">
                     {PRESETS.map(p => (
                       <button
                         key={p.name}
@@ -292,7 +292,7 @@ export function SettingsWindow({ win }: { win: WindowState }) {
                   </div>
 
                   <input ref={fileRef} type="file" accept="image/*" hidden onChange={handleUpload} />
-                  <div className="mt-3 flex min-w-0 flex-col gap-2 sm:flex-row">
+                  <div className="mt-3 flex min-w-0 flex-col gap-2">
                     <Input
                       placeholder="Wallpaper image URL(s)"
                       value={wallpaperUrl}
@@ -306,14 +306,14 @@ export function SettingsWindow({ win }: { win: WindowState }) {
                       className="h-9 min-w-0 flex-1 text-sm"
                     />
                     <Button
-                      type="button" variant="outline" size="sm" className="h-9 shrink-0"
+                      type="button" variant="outline" size="sm" className="h-9 shrink-0 justify-center"
                       disabled={!wallpaperUrl.trim()}
                       onClick={() => addWallpapers(wallpaperUrl)}
                     >
                       Add
                     </Button>
                     <Button
-                      type="button" variant="outline" size="sm" className="h-9 shrink-0 gap-1.5"
+                      type="button" variant="outline" size="sm" className="h-9 shrink-0 justify-center gap-1.5"
                       onClick={() => fileRef.current?.click()}
                     >
                       <Upload className="w-4 h-4" /> Upload
@@ -443,7 +443,7 @@ export function SettingsWindow({ win }: { win: WindowState }) {
                     <ImageIcon className="w-4 h-4" /> Bookmark backup
                   </h2>
                   <input ref={importRef} type="file" accept="application/json,.json" hidden onChange={handleImport} />
-                  <div className="flex flex-col gap-2 sm:flex-row">
+                  <div className="flex flex-col gap-2">
                     <Button variant="outline" size="sm" className="h-9 justify-center gap-1.5" onClick={handleExport}>
                       <Download className="w-4 h-4" /> Export
                     </Button>
