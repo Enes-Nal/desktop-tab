@@ -59,18 +59,26 @@ export function GoogleAppWindow({ win }: Props) {
     >
       <div className="min-h-0 flex-1 grid grid-cols-[260px_1fr] bg-background max-md:grid-cols-1">
         <GoogleAppSidebar service={app.service} currentUrl={url} />
-        <div className="relative min-h-0 border-l border-border bg-muted/30 max-md:hidden">
-          <iframe
-            title={app.name}
-            src={url}
-            className="absolute inset-0 h-full w-full bg-background"
-            sandbox="allow-forms allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts"
-          />
-          <div className="absolute bottom-3 left-3 right-3 rounded border border-border bg-background/95 p-3 shadow-lg backdrop-blur">
-            <div className="text-sm font-medium">{app.name} preview</div>
-            <p className="mt-1 text-xs leading-5 text-muted-foreground">
-              Some Google pages block embedded viewing. This window keeps your app shortcut and account controls here.
+        <div className="flex min-h-0 items-center justify-center border-l border-border bg-muted/30 p-6 max-md:hidden">
+          <div className="max-w-sm rounded-sm border border-border bg-background p-5 text-center shadow-sm">
+            <div
+              className="mx-auto flex h-12 w-12 items-center justify-center rounded-sm text-white"
+              style={{ backgroundColor: app.accent }}
+            >
+              {SERVICE_ICONS[app.service]}
+            </div>
+            <div className="mt-4 text-sm font-medium">{app.name} opens externally</div>
+            <p className="mt-2 text-xs leading-5 text-muted-foreground">
+              Google blocks these apps inside embedded frames, which causes the 403 access page. Use the external tab for the live app.
             </p>
+            <Button
+              type="button"
+              className="mt-4 h-9 gap-2"
+              onClick={() => openExternalGoogleUrl(url)}
+            >
+              <ExternalLink className="w-4 h-4" />
+              Open externally
+            </Button>
           </div>
         </div>
       </div>

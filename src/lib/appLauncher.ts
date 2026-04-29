@@ -1,7 +1,7 @@
 import { FsNode, ROOT_DOCUMENTS, ROOT_PICTURES, ROOT_DESKTOP } from '@/types/fs';
 import { useWMStore } from '@/store/wmStore';
 import { useFsStore } from '@/store/fsStore';
-import { GOOGLE_APPS, GoogleService } from '@/lib/googleApps';
+import { GOOGLE_APPS, GoogleService, openExternalGoogleUrl } from '@/lib/googleApps';
 import { toast } from 'sonner';
 
 const TASKBAR_H = 48;
@@ -93,9 +93,9 @@ export function openGoogleApp(service: GoogleService, opts: { url?: string; acco
     h: service === 'gmail' ? 520 : 560,
     singleton: service !== 'gmail',
   });
-  toast.success(`Opening ${app.name}`);
-  if (service === 'gmail') toast.message('Gmail may block embedded viewing', {
-    description: 'Use Open externally from the Gmail window if the page does not load.',
+  openExternalGoogleUrl(url, `Opened ${app.name} in a browser tab`);
+  toast.message(`${app.name} cannot be embedded here`, {
+    description: 'Google blocks these pages inside app frames, so the shortcut opens them externally.',
   });
 }
 
