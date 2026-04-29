@@ -37,6 +37,10 @@ export type Theme = 'light' | 'dark';
 export interface DesktopSettings {
   theme: Theme;
   wallpaper: string;
+  wallpapers: string[];
+  wallpaperShuffleEnabled: boolean;
+  wallpaperShuffleMinutes: number;
+  wallpaperLastShuffleAt: number;
   snapToGrid: boolean;
 }
 

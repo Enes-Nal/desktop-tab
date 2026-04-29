@@ -121,10 +121,34 @@ const persistNodes = (nodes: FsNode[]) => {
 
 const touch = (n: FsNode): FsNode => ({ ...n, modifiedAt: Date.now() });
 
+const defaultSettings = (): DesktopSettings => ({
+  theme: 'dark',
+  wallpaper: wallpaperDefault,
+  wallpapers: [wallpaperDefault],
+  wallpaperShuffleEnabled: false,
+  wallpaperShuffleMinutes: 15,
+  wallpaperLastShuffleAt: Date.now(),
+  snapToGrid: false,
+});
+
+const normalizeSettings = (settings: Partial<DesktopSettings> | null | undefined): DesktopSettings => {
+  const defaults = defaultSettings();
+  const wallpaper = settings?.wallpaper || defaults.wallpaper;
+  const wallpapers = Array.from(new Set([...(settings?.wallpapers ?? []), wallpaper].filter(Boolean)));
+  return {
+    ...defaults,
+    ...settings,
+    wallpaper,
+    wallpapers: wallpapers.length ? wallpapers : [wallpaper],
+    wallpaperShuffleMinutes: Math.max(1, settings?.wallpaperShuffleMinutes ?? defaults.wallpaperShuffleMinutes),
+    wallpaperLastShuffleAt: settings?.wallpaperLastShuffleAt ?? defaults.wallpaperLastShuffleAt,
+  };
+};
+
 export const useFsStore = create<FsState>()((setState, get) => ({
   nodes: [],
   selectedIds: [],
-  settings: { theme: 'dark', wallpaper: wallpaperDefault, snapToGrid: false },
+  settings: defaultSettings(),
   hydrated: false,
   openFolderId: null,
 
@@ -143,7 +167,7 @@ export const useFsStore = create<FsState>()((setState, get) => ({
       if (!have.has(ROOT_PICTURES)) missing.push({ id: ROOT_PICTURES, parentId: null, kind: 'folder', name: 'Pictures', x: 0, y: 0, createdAt: now, modifiedAt: now });
       if (missing.length) { nodes = [...missing, ...nodes]; await saveNodes(nodes); }
     }
-    const settings = (await loadSettings<DesktopSettings>()) ?? get().settings;
+    const settings = normalizeSettings(await loadSettings<Partial<DesktopSettings>>());
     setState({ nodes, settings, hydrated: true });
   },
 
@@ -156,7 +180,7 @@ export const useFsStore = create<FsState>()((setState, get) => ({
   clearSelection: () => setState({ selectedIds: [] }),
 
   setSettings: (patch) => {
-    const next = { ...get().settings, ...patch };
+    const next = normalizeSettings({ ...get().settings, ...patch });
     setState({ settings: next });
     saveSettings(next).catch(console.error);
   },

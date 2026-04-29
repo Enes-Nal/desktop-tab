@@ -58,6 +58,30 @@ export function Desktop() {
     document.documentElement.classList.toggle('dark', settings.theme === 'dark');
   }, [settings.theme]);
 
+  useEffect(() => {
+    if (!settings.wallpaperShuffleEnabled || settings.wallpapers.length < 2) return;
+    const intervalMs = Math.max(1, settings.wallpaperShuffleMinutes) * 60 * 1000;
+
+    const shuffle = () => {
+      const now = Date.now();
+      if (now - settings.wallpaperLastShuffleAt < intervalMs) return;
+      const choices = settings.wallpapers.filter(url => url !== settings.wallpaper);
+      const nextWallpaper = choices[Math.floor(Math.random() * choices.length)] ?? settings.wallpapers[0];
+      setSettings({ wallpaper: nextWallpaper, wallpaperLastShuffleAt: now });
+    };
+
+    shuffle();
+    const id = window.setInterval(shuffle, Math.min(intervalMs, 60 * 1000));
+    return () => window.clearInterval(id);
+  }, [
+    settings.wallpaper,
+    settings.wallpaperLastShuffleAt,
+    settings.wallpaperShuffleEnabled,
+    settings.wallpaperShuffleMinutes,
+    settings.wallpapers,
+    setSettings,
+  ]);
+
   const snap = useCallback((x: number, y: number) => {
     if (!settings.snapToGrid) return { x, y };
     return {

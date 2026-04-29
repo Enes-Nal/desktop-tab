@@ -6,7 +6,7 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import {
   Sun, Moon, Power, Image as ImageIcon, Search, Plus, Globe,
-  Download, Upload, FileText, FolderOpen,
+  Download, Upload, FileText, FolderOpen, Shuffle, X,
 } from 'lucide-react';
 import { useNotesStore } from '@/store/notesStore';
 import { openFileExplorerAt } from '@/lib/appLauncher';
@@ -78,12 +78,44 @@ export function StartMenu({ onClose, onAddBookmark }: Props) {
 
   const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    e.target.value = '';
     if (!file) return;
     const reader = new FileReader();
     reader.onload = () => {
-      setSettings({ wallpaper: reader.result as string });
+      const wallpaper = reader.result as string;
+      setSettings({
+        wallpaper,
+        wallpapers: [wallpaper, ...settings.wallpapers.filter(url => url !== wallpaper)],
+        wallpaperLastShuffleAt: Date.now(),
+      });
     };
     reader.readAsDataURL(file);
+  };
+
+  const addWallpapers = (raw: string) => {
+    const incoming = raw
+      .split(/[\s,]+/)
+      .map(normalizeWallpaperUrl)
+      .filter(Boolean);
+    if (incoming.length === 0) return;
+    const wallpaper = incoming[0];
+    setSettings({
+      wallpaper,
+      wallpapers: [...incoming, ...settings.wallpapers.filter(url => !incoming.includes(url))],
+      wallpaperLastShuffleAt: Date.now(),
+    });
+    setWallpaperUrl('');
+  };
+
+  const removeWallpaper = (url: string) => {
+    const wallpapers = settings.wallpapers.filter(item => item !== url);
+    const nextWallpaper = settings.wallpaper === url ? (wallpapers[0] || wallpaperDefault) : settings.wallpaper;
+    setSettings({
+      wallpaper: nextWallpaper,
+      wallpapers: wallpapers.length ? wallpapers : [nextWallpaper],
+      wallpaperShuffleEnabled: wallpapers.length > 1 ? settings.wallpaperShuffleEnabled : false,
+      wallpaperLastShuffleAt: Date.now(),
+    });
   };
 
   const openFolder = (id: string) => { openFileExplorerAt(id); onClose(); };
@@ -174,7 +206,11 @@ export function StartMenu({ onClose, onAddBookmark }: Props) {
             {PRESETS.map(p => (
               <button
                 key={p.name}
-                onClick={() => setSettings({ wallpaper: p.url })}
+                onClick={() => setSettings({
+                  wallpaper: p.url,
+                  wallpapers: [p.url, ...settings.wallpapers.filter(url => url !== p.url)],
+                  wallpaperLastShuffleAt: Date.now(),
+                })}
                 className={cn(
                   'aspect-video rounded-sm overflow-hidden border-2 transition-all',
                   settings.wallpaper === p.url ? 'border-primary' : 'border-transparent hover:border-border'
@@ -187,13 +223,13 @@ export function StartMenu({ onClose, onAddBookmark }: Props) {
           <input ref={fileRef} type="file" accept="image/*" hidden onChange={handleUpload} />
           <div className="mt-2 flex gap-1">
             <Input
-              placeholder="Wallpaper image URL"
+              placeholder="Wallpaper image URL(s)"
               value={wallpaperUrl}
               onChange={(e) => setWallpaperUrl(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   e.preventDefault();
-                  if (wallpaperUrl.trim()) { setSettings({ wallpaper: normalizeWallpaperUrl(wallpaperUrl) }); setWallpaperUrl(''); }
+                  if (wallpaperUrl.trim()) addWallpapers(wallpaperUrl);
                 }
               }}
               className="h-8 text-xs flex-1"
@@ -201,10 +237,71 @@ export function StartMenu({ onClose, onAddBookmark }: Props) {
             <Button
               type="button" variant="outline" size="sm" className="h-8 text-xs px-2"
               disabled={!wallpaperUrl.trim()}
-              onClick={() => { setSettings({ wallpaper: normalizeWallpaperUrl(wallpaperUrl) }); setWallpaperUrl(''); }}
+              onClick={() => addWallpapers(wallpaperUrl)}
             >
-              Set
+              Add
             </Button>
+          </div>
+          <div className="mt-2 space-y-1.5">
+            <div className="flex items-center justify-between gap-2">
+              <Label className="text-xs flex items-center gap-2">
+                <Shuffle className="w-3.5 h-3.5" /> Shuffle
+              </Label>
+              <Switch
+                checked={settings.wallpaperShuffleEnabled}
+                disabled={settings.wallpapers.length < 2}
+                onCheckedChange={(v) => setSettings({
+                  wallpaperShuffleEnabled: v,
+                  wallpaperLastShuffleAt: Date.now(),
+                })}
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] text-muted-foreground shrink-0">Every</span>
+              <Input
+                type="number"
+                min={1}
+                max={1440}
+                value={settings.wallpaperShuffleMinutes}
+                onChange={(e) => setSettings({
+                  wallpaperShuffleMinutes: Math.max(1, Number(e.target.value) || 1),
+                  wallpaperLastShuffleAt: Date.now(),
+                })}
+                className="h-8 text-xs w-20"
+              />
+              <span className="text-[11px] text-muted-foreground">minutes</span>
+            </div>
+            <div className="max-h-28 overflow-y-auto space-y-1 pr-1">
+              {settings.wallpapers.map((url) => (
+                <div
+                  key={url}
+                  className={cn(
+                    'flex items-center gap-2 rounded-sm border px-1.5 py-1',
+                    settings.wallpaper === url ? 'border-primary bg-primary/10' : 'border-border/60 bg-background/30',
+                  )}
+                >
+                  <button
+                    type="button"
+                    onClick={() => setSettings({ wallpaper: url, wallpaperLastShuffleAt: Date.now() })}
+                    className="h-8 w-12 overflow-hidden rounded-sm bg-muted shrink-0"
+                    title="Use wallpaper"
+                  >
+                    <img src={url} alt="" className="h-full w-full object-cover" />
+                  </button>
+                  <div className="min-w-0 flex-1 truncate text-[11px] text-muted-foreground">
+                    {url.startsWith('data:') ? 'Uploaded wallpaper' : url}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removeWallpaper(url)}
+                    className="h-6 w-6 flex items-center justify-center rounded-sm hover:bg-destructive hover:text-destructive-foreground shrink-0"
+                    title="Remove wallpaper"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
           </div>
           <Button
             type="button" variant="outline" size="sm" className="w-full mt-1.5 h-8 text-xs"
