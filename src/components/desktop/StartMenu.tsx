@@ -1,11 +1,16 @@
 import { useRef, useState } from 'react';
-import { useDesktopStore } from '@/store/desktopStore';
+import { useFsStore } from '@/store/fsStore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { Sun, Moon, Power, Image as ImageIcon, Search, Settings as SettingsIcon, Plus, Globe, Download, Upload, FileText } from 'lucide-react';
+import {
+  Sun, Moon, Power, Image as ImageIcon, Search, Plus, Globe,
+  Download, Upload, FileText, FolderOpen,
+} from 'lucide-react';
 import { useNotesStore } from '@/store/notesStore';
+import { openFileExplorerAt } from '@/lib/appLauncher';
+import { ROOT_DESKTOP, ROOT_DOCUMENTS, ROOT_PICTURES } from '@/types/fs';
 import { toast } from 'sonner';
 import wallpaperDefault from '@/assets/wallpaper-default.jpg';
 import wallpaperDark from '@/assets/wallpaper-dark.jpg';
@@ -24,7 +29,11 @@ const PRESETS = [
 ];
 
 export function StartMenu({ onClose, onAddBookmark }: Props) {
-  const { items, settings, setSettings, exportItems, importItems } = useDesktopStore();
+  const nodes = useFsStore(s => s.nodes);
+  const settings = useFsStore(s => s.settings);
+  const setSettings = useFsStore(s => s.setSettings);
+  const exportItems = useFsStore(s => s.exportItems);
+  const importItems = useFsStore(s => s.importItems);
   const openNotepad = useNotesStore(s => s.openWindow);
   const [query, setQuery] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
@@ -51,7 +60,7 @@ export function StartMenu({ onClose, onAddBookmark }: Props) {
     reader.onload = () => {
       const text = reader.result as string;
       const replace = window.confirm(
-        'Replace all current bookmarks?\n\nClick OK to REPLACE, or Cancel to MERGE with existing items.'
+        'Replace all current items?\n\nClick OK to REPLACE, or Cancel to MERGE with existing items.'
       );
       const result = importItems(text, replace ? 'replace' : 'merge');
       if (result.ok) toast.success(`Imported ${result.count} item${result.count === 1 ? '' : 's'}`);
@@ -60,9 +69,9 @@ export function StartMenu({ onClose, onAddBookmark }: Props) {
     reader.readAsText(file);
   };
 
-  const bookmarks = items.filter(i => i.kind === 'bookmark');
+  const bookmarks = nodes.filter(n => n.kind === 'bookmark');
   const filtered = bookmarks.filter(b =>
-    b.title.toLowerCase().includes(query.toLowerCase()) ||
+    b.name.toLowerCase().includes(query.toLowerCase()) ||
     (b.url ?? '').toLowerCase().includes(query.toLowerCase())
   );
 
@@ -76,13 +85,14 @@ export function StartMenu({ onClose, onAddBookmark }: Props) {
     reader.readAsDataURL(file);
   };
 
+  const openFolder = (id: string) => { openFileExplorerAt(id); onClose(); };
+
   return (
     <div
       className="fixed bottom-12 left-2 z-40 w-[380px] max-h-[80vh] rounded-md glass-start animate-slide-up overflow-hidden flex flex-col"
       onMouseDown={(e) => e.stopPropagation()}
       onContextMenu={(e) => e.preventDefault()}
     >
-      {/* Search */}
       <div className="p-3 border-b border-border/50">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -94,6 +104,13 @@ export function StartMenu({ onClose, onAddBookmark }: Props) {
             className="w-full pl-9 pr-3 py-2 text-sm rounded-sm bg-background/60 border border-border outline-none focus:ring-2 focus:ring-primary"
           />
         </div>
+      </div>
+
+      {/* Quick access */}
+      <div className="px-2 pt-2 grid grid-cols-3 gap-1.5 shrink-0">
+        <QuickButton label="Desktop" onClick={() => openFolder(ROOT_DESKTOP)} />
+        <QuickButton label="Documents" onClick={() => openFolder(ROOT_DOCUMENTS)} />
+        <QuickButton label="Pictures" onClick={() => openFolder(ROOT_PICTURES)} />
       </div>
 
       {/* Bookmarks list */}
@@ -114,13 +131,13 @@ export function StartMenu({ onClose, onAddBookmark }: Props) {
                 className="flex items-center gap-3 px-2 py-1.5 rounded-sm hover:bg-primary hover:text-primary-foreground transition-colors"
                 onClick={() => onClose()}
               >
-                {b.favicon ? (
-                  <img src={b.favicon} alt="" className="w-5 h-5" />
+                {(b.customIcon || b.favicon) ? (
+                  <img src={b.customIcon || b.favicon} alt="" className="w-5 h-5" />
                 ) : (
                   <Globe className="w-5 h-5" />
                 )}
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm truncate">{b.title}</div>
+                  <div className="text-sm truncate">{b.name || <span className="opacity-60">Untitled</span>}</div>
                   <div className="text-[11px] opacity-70 truncate">{b.url}</div>
                 </div>
               </a>
@@ -181,10 +198,7 @@ export function StartMenu({ onClose, onAddBookmark }: Props) {
               className="h-8 text-xs flex-1"
             />
             <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="h-8 text-xs px-2"
+              type="button" variant="outline" size="sm" className="h-8 text-xs px-2"
               disabled={!wallpaperUrl.trim()}
               onClick={() => { setSettings({ wallpaper: wallpaperUrl.trim() }); setWallpaperUrl(''); }}
             >
@@ -192,17 +206,13 @@ export function StartMenu({ onClose, onAddBookmark }: Props) {
             </Button>
           </div>
           <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="w-full mt-1.5 h-8 text-xs"
+            type="button" variant="outline" size="sm" className="w-full mt-1.5 h-8 text-xs"
             onClick={() => fileRef.current?.click()}
           >
             Upload custom
           </Button>
         </div>
 
-        {/* Bookmark backup */}
         <div className="pt-1">
           <Label className="text-xs flex items-center gap-2 mb-2">
             <Download className="w-3.5 h-3.5" /> Bookmark backup
@@ -219,7 +229,6 @@ export function StartMenu({ onClose, onAddBookmark }: Props) {
         </div>
       </div>
 
-      {/* Footer actions */}
       <div className="border-t border-border/50 p-2 flex items-center justify-between">
         <div className="flex gap-1">
           <Button variant="ghost" size="sm" onClick={onAddBookmark} className="text-xs gap-1.5">
@@ -234,5 +243,17 @@ export function StartMenu({ onClose, onAddBookmark }: Props) {
         </div>
       </div>
     </div>
+  );
+}
+
+function QuickButton({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className="flex flex-col items-center gap-1 p-2 rounded-sm hover:bg-foreground/10 transition-colors"
+    >
+      <FolderOpen className="w-5 h-5 text-yellow-500" />
+      <span className="text-[11px]">{label}</span>
+    </button>
   );
 }

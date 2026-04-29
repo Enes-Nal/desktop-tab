@@ -1,15 +1,20 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { useDesktopStore } from '@/store/desktopStore';
+import { useFsStore } from '@/store/fsStore';
+import { useWMStore } from '@/store/wmStore';
 import { DesktopIcon } from './DesktopIcon';
 import { ContextMenu, MenuItem } from './ContextMenu';
 import { AddBookmarkDialog } from './AddBookmarkDialog';
 import { Taskbar } from './Taskbar';
 import { StartMenu } from './StartMenu';
-import { FolderWindow } from './FolderWindow';
 import { NotepadWindow } from './NotepadWindow';
 import { IconUrlDialog } from './IconUrlDialog';
-import { DesktopItem, GRID, ICON_W, ICON_H } from '@/types/desktop';
-import { ExternalLink, Pencil, Trash2, Plus, RefreshCw, FolderPlus, Image as ImageIcon, FolderInput, Link2 } from 'lucide-react';
+import { WindowHost } from './WindowHost';
+import { FsNode, GRID, ICON_W, ICON_H, ROOT_DESKTOP, isRoot } from '@/types/fs';
+import { activateNode, openFileExplorerAt } from '@/lib/appLauncher';
+import {
+  ExternalLink, Pencil, Trash2, Plus, RefreshCw, FolderPlus,
+  Image as ImageIcon, FolderInput, Link2, FileText as FileTextIcon, FolderOpen,
+} from 'lucide-react';
 
 type Menu =
   | { type: 'icon'; x: number; y: number; iconId: string }
@@ -19,14 +24,17 @@ type Menu =
 const TASKBAR_H = 48;
 
 export function Desktop() {
+  const nodes = useFsStore(s => s.nodes);
+  const selectedIds = useFsStore(s => s.selectedIds);
+  const settings = useFsStore(s => s.settings);
+  const hydrated = useFsStore(s => s.hydrated);
   const {
-    items, selectedIds, settings, openFolderId,
-    addBookmark, addFolder, removeItems, renameItem, moveItems, setItemParent, setCustomIcon,
-    setSelected, toggleSelected, clearSelection, openFolder,
-    setSettings,
-  } = useDesktopStore();
+    addBookmark, addFolder, addTextFile,
+    removeItems, renameItem, moveItems, setItemParent, setCustomIcon,
+    setSelected, toggleSelected, clearSelection, setSettings,
+  } = useFsStore();
 
-  const desktopItems = items.filter(i => i.parentId === null);
+  const desktopNodes = nodes.filter(n => n.parentId === ROOT_DESKTOP);
 
   const [menu, setMenu] = useState<Menu>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -63,11 +71,6 @@ export function Desktop() {
     y: Math.max(0, Math.min(window.innerHeight - TASKBAR_H - ICON_H, y)),
   });
 
-  const activate = (item: DesktopItem) => {
-    if (item.kind === 'folder') openFolder(item.id);
-    else if (item.url) window.open(item.url, '_blank', 'noopener');
-  };
-
   const onIconMouseDown = (e: React.MouseEvent, id: string) => {
     if (e.button !== 0) return;
     e.stopPropagation();
@@ -83,7 +86,7 @@ export function Desktop() {
     }
 
     const origin = new Map<string, { x: number; y: number }>();
-    items.forEach(b => { if (ids.includes(b.id)) origin.set(b.id, { x: b.x, y: b.y }); });
+    nodes.forEach(b => { if (ids.includes(b.id)) origin.set(b.id, { x: b.x, y: b.y }); });
     drag.current = { ids, startX: e.clientX, startY: e.clientY, origin, moved: false };
   };
 
@@ -99,6 +102,7 @@ export function Desktop() {
     setStartOpen(false);
     if (e.button !== 0) return;
     if ((e.target as HTMLElement).closest('[data-icon-id]')) return;
+    if ((e.target as HTMLElement).closest('[data-window-root]')) return;
     if (!(e.ctrlKey || e.metaKey || e.shiftKey)) clearSelection();
     const box = { startX: e.clientX, startY: e.clientY, curX: e.clientX, curY: e.clientY };
     selBoxRef.current = box;
@@ -107,18 +111,21 @@ export function Desktop() {
 
   const onDesktopContextMenu = (e: React.MouseEvent) => {
     if ((e.target as HTMLElement).closest('[data-icon-id]')) return;
+    if ((e.target as HTMLElement).closest('[data-window-root]')) return;
     e.preventDefault();
     setMenu({ type: 'desktop', x: e.clientX, y: e.clientY });
   };
 
-  // Find a desktop bookmark/folder under the pointer (excluding the dragged ones)
   const findDropTarget = (clientX: number, clientY: number, excludeIds: string[]): string | null => {
-    const el = document.elementFromPoint(clientX, clientY);
-    const iconEl = el?.closest('[data-icon-id]') as HTMLElement | null;
-    if (!iconEl) return null;
-    const id = iconEl.getAttribute('data-icon-id');
-    if (!id || excludeIds.includes(id)) return null;
-    return id;
+    const els = document.elementsFromPoint(clientX, clientY);
+    for (const el of els) {
+      const iconEl = el.closest('[data-icon-id]') as HTMLElement | null;
+      if (!iconEl) continue;
+      const id = iconEl.getAttribute('data-icon-id');
+      if (!id || excludeIds.includes(id)) continue;
+      return id;
+    }
+    return null;
   };
 
   useEffect(() => {
@@ -136,17 +143,12 @@ export function Desktop() {
           });
           moveItems(updates);
 
-          // Drop target detection (single-icon drag onto a folder OR another bookmark)
+          const tid = findDropTarget(e.clientX, e.clientY, d.ids);
+          const tNode = tid ? nodes.find(n => n.id === tid) : null;
           if (d.ids.length === 1) {
-            const tid = findDropTarget(e.clientX, e.clientY, d.ids);
-            const tItem = tid ? items.find(i => i.id === tid) : null;
-            // valid target: folder, OR bookmark (will create folder)
-            setDropTargetId(tItem ? tid : null);
+            setDropTargetId(tNode ? tid : null);
           } else {
-            // for multi, only allow folder drop
-            const tid = findDropTarget(e.clientX, e.clientY, d.ids);
-            const tItem = tid ? items.find(i => i.id === tid) : null;
-            setDropTargetId(tItem?.kind === 'folder' ? tid : null);
+            setDropTargetId(tNode?.kind === 'folder' ? tid : null);
           }
         }
         return;
@@ -159,7 +161,7 @@ export function Desktop() {
         const maxX = Math.max(next.startX, next.curX);
         const minY = Math.min(next.startY, next.curY);
         const maxY = Math.max(next.startY, next.curY);
-        const ids = desktopItems
+        const ids = desktopNodes
           .filter(b => b.x < maxX && b.x + ICON_W > minX && b.y < maxY && b.y + ICON_H > minY)
           .map(b => b.id);
         setSelected(ids);
@@ -169,24 +171,22 @@ export function Desktop() {
       if (drag.current) {
         const d = drag.current;
         if (d.moved) {
-          // Handle drop on target
           if (dropTargetId) {
-            const target = items.find(i => i.id === dropTargetId);
+            const target = nodes.find(n => n.id === dropTargetId);
             if (target?.kind === 'folder') {
               d.ids.forEach(id => setItemParent(id, target.id));
             } else if (target?.kind === 'bookmark' && d.ids.length === 1) {
-              // Create new folder containing both
               const draggedId = d.ids[0];
-              const dragged = items.find(i => i.id === draggedId);
+              const dragged = nodes.find(n => n.id === draggedId);
               if (dragged && dragged.kind === 'bookmark') {
-                const fid = addFolder({ x: target.x, y: target.y });
+                const fid = addFolder({ x: target.x, y: target.y, parentId: target.parentId });
                 setItemParent(target.id, fid);
                 setItemParent(draggedId, fid);
               }
             }
           } else if (settings.snapToGrid) {
             const updates = d.ids.map(id => {
-              const b = useDesktopStore.getState().items.find(x => x.id === id)!;
+              const b = useFsStore.getState().nodes.find(x => x.id === id)!;
               const s = snap(b.x, b.y);
               const c = clampPos(s.x, s.y);
               return { id, x: c.x, y: c.y };
@@ -208,17 +208,19 @@ export function Desktop() {
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
     };
-  }, [items, desktopItems, dropTargetId, moveItems, setSelected, snap, settings.snapToGrid, setItemParent, addFolder]);
+  }, [nodes, desktopNodes, dropTargetId, moveItems, setSelected, snap, settings.snapToGrid, setItemParent, addFolder]);
 
   // Keyboard shortcuts
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement)?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      const editable = (e.target as HTMLElement)?.isContentEditable;
+      if (editable) return;
       if (e.key === 'Delete' && selectedIds.length) removeItems(selectedIds);
-      else if (e.key === 'F2' && selectedIds.length === 1) setRenamingId(selectedIds[0]);
+      else if (e.key === 'F2' && selectedIds.length === 1 && !isRoot(selectedIds[0])) setRenamingId(selectedIds[0]);
       else if (e.key === 'Enter' && selectedIds.length) {
-        items.filter(b => selectedIds.includes(b.id)).forEach(activate);
+        nodes.filter(b => selectedIds.includes(b.id)).forEach(activateNode);
       } else if (e.key === 'Escape') {
         clearSelection();
         setStartOpen(false);
@@ -228,9 +230,8 @@ export function Desktop() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedIds, items]);
+  }, [selectedIds, nodes]);
 
-  // Custom icon upload trigger
   useEffect(() => {
     if (iconUploadId) iconFileRef.current?.click();
   }, [iconUploadId]);
@@ -247,23 +248,24 @@ export function Desktop() {
   };
 
   const buildIconMenu = (id: string): MenuItem[] => {
-    const b = items.find(x => x.id === id);
+    const b = nodes.find(x => x.id === id);
     if (!b) return [];
     const multi = selectedIds.length > 1 && selectedIds.includes(id);
     const isFolder = b.kind === 'folder';
+    const isBookmark = b.kind === 'bookmark';
 
     const out: MenuItem[] = [
       {
-        label: multi ? `Open ${selectedIds.length} items` : isFolder ? 'Open folder' : 'Open',
+        label: multi ? `Open ${selectedIds.length} items` : isFolder ? 'Open' : isBookmark ? 'Open in new tab' : 'Open',
         icon: <ExternalLink className="w-4 h-4" />,
         onClick: () => {
-          if (multi) items.filter(x => selectedIds.includes(x.id)).forEach(activate);
-          else activate(b);
+          if (multi) nodes.filter(x => selectedIds.includes(x.id)).forEach(activateNode);
+          else activateNode(b);
         },
       },
     ];
 
-    if (!isFolder) {
+    if (isBookmark) {
       out.push({
         label: 'Upload icon…',
         icon: <ImageIcon className="w-4 h-4" />,
@@ -286,27 +288,29 @@ export function Desktop() {
       }
     }
 
-    if (b.parentId !== null) {
+    if (b.parentId !== ROOT_DESKTOP && !isRoot(id)) {
       out.push({
         label: 'Move to desktop',
         icon: <FolderInput className="w-4 h-4" />,
-        onClick: () => selectedIds.forEach(sid => setItemParent(sid, null)),
+        onClick: () => selectedIds.forEach(sid => setItemParent(sid, ROOT_DESKTOP)),
       });
     }
 
-    out.push({ label: '', separator: true, onClick: () => {} });
-    out.push({
-      label: 'Rename',
-      icon: <Pencil className="w-4 h-4" />,
-      disabled: multi,
-      onClick: () => setRenamingId(id),
-    });
-    out.push({
-      label: multi ? `Delete ${selectedIds.length}` : 'Delete',
-      icon: <Trash2 className="w-4 h-4" />,
-      destructive: true,
-      onClick: () => removeItems(multi ? selectedIds : [id]),
-    });
+    if (!isRoot(id)) {
+      out.push({ label: '', separator: true, onClick: () => {} });
+      out.push({
+        label: 'Rename',
+        icon: <Pencil className="w-4 h-4" />,
+        disabled: multi,
+        onClick: () => setRenamingId(id),
+      });
+      out.push({
+        label: multi ? `Delete ${selectedIds.length}` : 'Delete',
+        icon: <Trash2 className="w-4 h-4" />,
+        destructive: true,
+        onClick: () => removeItems(multi ? selectedIds : [id]),
+      });
+    }
     return out;
   };
 
@@ -323,12 +327,27 @@ export function Desktop() {
         icon: <FolderPlus className="w-4 h-4" />,
         onClick: () => {
           const c = clampPos(mx - 40, my - 40);
-          const id = addFolder({ x: c.x, y: c.y });
+          const id = addFolder({ x: c.x, y: c.y, parentId: ROOT_DESKTOP });
+          setSelected([id]);
+          setRenamingId(id);
+        },
+      },
+      {
+        label: 'New text file',
+        icon: <FileTextIcon className="w-4 h-4" />,
+        onClick: () => {
+          const c = clampPos(mx - 40, my - 40);
+          const id = addTextFile({ name: 'New File.txt', parentId: ROOT_DESKTOP, x: c.x, y: c.y });
           setSelected([id]);
           setRenamingId(id);
         },
       },
       { label: '', separator: true, onClick: () => {} },
+      {
+        label: 'Open File Explorer',
+        icon: <FolderOpen className="w-4 h-4" />,
+        onClick: () => openFileExplorerAt(ROOT_DESKTOP),
+      },
       {
         label: settings.snapToGrid ? 'Disable snap to grid' : 'Enable snap to grid',
         icon: <RefreshCw className="w-4 h-4" />,
@@ -336,6 +355,16 @@ export function Desktop() {
       },
     ];
   };
+
+  if (!hydrated) {
+    return (
+      <div className="fixed inset-0 flex items-center justify-center bg-background text-muted-foreground text-sm">
+        Loading…
+      </div>
+    );
+  }
+
+  const iconUrlNode = iconUrlDialogId ? nodes.find(n => n.id === iconUrlDialogId) : null;
 
   return (
     <div
@@ -351,16 +380,16 @@ export function Desktop() {
       <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/10 pointer-events-none" />
 
       <div className="absolute inset-0" style={{ paddingBottom: TASKBAR_H }}>
-        {desktopItems.map(item => (
+        {desktopNodes.map(node => (
           <DesktopIcon
-            key={item.id}
-            item={item}
-            selected={selectedIds.includes(item.id)}
-            isRenaming={renamingId === item.id}
-            isDropTarget={dropTargetId === item.id}
+            key={node.id}
+            node={node}
+            selected={selectedIds.includes(node.id)}
+            isRenaming={renamingId === node.id}
+            isDropTarget={dropTargetId === node.id}
             onMouseDown={onIconMouseDown}
             onContextMenu={onIconContextMenu}
-            onActivate={activate}
+            onActivate={activateNode}
             onRenameSubmit={(id, t) => { renameItem(id, t); setRenamingId(null); }}
             onRenameCancel={() => setRenamingId(null)}
           />
@@ -379,17 +408,7 @@ export function Desktop() {
         />
       )}
 
-      {/* Folder window */}
-      {openFolderId && (
-        <FolderWindow
-          folderId={openFolderId}
-          onClose={() => openFolder(null)}
-          onItemContextMenu={onIconContextMenu}
-          onItemActivate={activate}
-          renamingId={renamingId}
-          setRenamingId={setRenamingId}
-        />
-      )}
+      <WindowHost />
 
       {startOpen && (
         <StartMenu
@@ -416,16 +435,16 @@ export function Desktop() {
       <AddBookmarkDialog
         open={dialogOpen}
         onClose={() => setDialogOpen(false)}
-        onAdd={(d) => addBookmark(d)}
+        onAdd={(d) => addBookmark({
+          name: d.name, url: d.url, favicon: d.favicon,
+          customIcon: d.customIcon, parentId: ROOT_DESKTOP,
+        })}
       />
 
       <IconUrlDialog
         open={iconUrlDialogId !== null}
-        initialUrl={iconUrlDialogId ? (() => {
-          const it = items.find(i => i.id === iconUrlDialogId);
-          return it?.customIcon && !it.customIcon.startsWith('data:') ? it.customIcon : '';
-        })() : ''}
-        itemTitle={iconUrlDialogId ? items.find(i => i.id === iconUrlDialogId)?.title : undefined}
+        initialUrl={iconUrlNode?.customIcon && !iconUrlNode.customIcon.startsWith('data:') ? iconUrlNode.customIcon : ''}
+        itemTitle={iconUrlNode?.name}
         onClose={() => setIconUrlDialogId(null)}
         onSave={(url) => { if (iconUrlDialogId) setCustomIcon(iconUrlDialogId, url); }}
       />
