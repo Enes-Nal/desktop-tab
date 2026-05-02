@@ -28,11 +28,21 @@ type Menu =
 
 const TASKBAR_H = 48;
 const BASE_VIEWPORT = { width: 1280, height: 760 };
+const MIN_ICON_EDGE_GAP = 8;
 
-const getViewportSize = () => ({
-  width: window.innerWidth,
-  height: Math.max(1, window.innerHeight - TASKBAR_H),
-});
+const getViewportSize = (element?: HTMLElement | null) => {
+  if (element) {
+    return {
+      width: Math.max(1, element.clientWidth),
+      height: Math.max(1, element.clientHeight),
+    };
+  }
+
+  return {
+    width: window.innerWidth,
+    height: Math.max(1, window.innerHeight - TASKBAR_H),
+  };
+};
 
 const getIconScale = (viewport: { width: number; height: number }) => {
   const scale = Math.min(viewport.width / BASE_VIEWPORT.width, viewport.height / BASE_VIEWPORT.height);
@@ -75,6 +85,7 @@ export function Desktop() {
   const [importOpen, setImportOpen] = useState(false);
   const [viewport, setViewport] = useState(getViewportSize);
   const iconFileRef = useRef<HTMLInputElement>(null);
+  const iconSurfaceRef = useRef<HTMLDivElement>(null);
   const lastViewportRef = useRef(viewport);
 
   const drag = useRef<{
@@ -124,40 +135,58 @@ export function Desktop() {
     setSettings,
   ]);
 
-  useEffect(() => {
-    const onResize = () => {
-      const previous = lastViewportRef.current;
-      const next = getViewportSize();
-      const previousScale = getIconScale(previous);
-      const nextScale = getIconScale(next);
-      const previousBox = getIconBox(previousScale);
-      const nextBox = getIconBox(nextScale);
-      const previousMaxX = Math.max(1, previous.width - previousBox.width);
-      const previousMaxY = Math.max(1, previous.height - previousBox.height);
-      const nextMaxX = Math.max(1, next.width - nextBox.width);
-      const nextMaxY = Math.max(1, next.height - nextBox.height);
+  const containDesktopIcons = useCallback((next: { width: number; height: number }) => {
+    const previous = lastViewportRef.current;
+    const previousScale = getIconScale(previous);
+    const nextScale = getIconScale(next);
+    const previousBox = getIconBox(previousScale);
+    const nextBox = getIconBox(nextScale);
+    const previousMaxX = Math.max(1, previous.width - previousBox.width - MIN_ICON_EDGE_GAP);
+    const previousMaxY = Math.max(1, previous.height - previousBox.height - MIN_ICON_EDGE_GAP);
+    const nextMaxX = Math.max(0, next.width - nextBox.width - MIN_ICON_EDGE_GAP);
+    const nextMaxY = Math.max(0, next.height - nextBox.height - MIN_ICON_EDGE_GAP);
 
-      setViewport(next);
-      lastViewportRef.current = next;
+    setViewport(next);
+    lastViewportRef.current = next;
 
-      const currentNodes = useFsStore.getState().nodes.filter(n => !n.deletedAt && n.parentId === ROOT_DESKTOP);
-      if (currentNodes.length === 0) return;
+    const currentNodes = useFsStore.getState().nodes.filter(n => !n.deletedAt && n.parentId === ROOT_DESKTOP);
+    if (currentNodes.length === 0) return;
 
-      moveItems(currentNodes.map(node => ({
+    const updates = currentNodes
+      .map(node => ({
         id: node.id,
         x: Math.round(Math.max(0, Math.min(nextMaxX, (node.x / previousMaxX) * nextMaxX))),
         y: Math.round(Math.max(0, Math.min(nextMaxY, (node.y / previousMaxY) * nextMaxY))),
-      })));
-    };
+      }))
+      .filter(nextPos => {
+        const node = currentNodes.find(item => item.id === nextPos.id);
+        return node && (node.x !== nextPos.x || node.y !== nextPos.y);
+      });
 
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
+    if (updates.length) moveItems(updates);
   }, [moveItems]);
 
   useEffect(() => {
+    const surface = iconSurfaceRef.current;
+    if (!surface) return;
+
+    const syncViewport = () => containDesktopIcons(getViewportSize(surface));
+    syncViewport();
+
+    const observer = new ResizeObserver(syncViewport);
+    observer.observe(surface);
+
+    window.addEventListener('resize', syncViewport);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', syncViewport);
+    };
+  }, [containDesktopIcons]);
+
+  useEffect(() => {
     if (!hydrated || desktopNodes.length === 0) return;
-    const maxX = Math.max(0, viewport.width - iconBox.width);
-    const maxY = Math.max(0, viewport.height - iconBox.height);
+    const maxX = Math.max(0, viewport.width - iconBox.width - MIN_ICON_EDGE_GAP);
+    const maxY = Math.max(0, viewport.height - iconBox.height - MIN_ICON_EDGE_GAP);
     const updates = desktopNodes
       .map(node => ({
         id: node.id,
@@ -181,9 +210,9 @@ export function Desktop() {
   }, [settings.snapToGrid]);
 
   const clampPos = useCallback((x: number, y: number) => ({
-    x: Math.max(0, Math.min(window.innerWidth - iconBox.width, x)),
-    y: Math.max(0, Math.min(window.innerHeight - TASKBAR_H - iconBox.height, y)),
-  }), [iconBox.height, iconBox.width]);
+    x: Math.max(0, Math.min(viewport.width - iconBox.width - MIN_ICON_EDGE_GAP, x)),
+    y: Math.max(0, Math.min(viewport.height - iconBox.height - MIN_ICON_EDGE_GAP, y)),
+  }), [iconBox.height, iconBox.width, viewport.height, viewport.width]);
 
   const onIconMouseDown = (e: React.MouseEvent, id: string) => {
     if (e.button !== 0) return;
@@ -581,7 +610,12 @@ export function Desktop() {
       />
       <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/10 pointer-events-none" />
 
-      <div className="absolute inset-0" style={{ paddingBottom: TASKBAR_H }}>
+      <div
+        ref={iconSurfaceRef}
+        data-desktop-icon-surface
+        className="absolute inset-x-0 top-0"
+        style={{ bottom: TASKBAR_H }}
+      >
         {desktopNodes.map(node => (
           <DesktopIcon
             key={node.id}
