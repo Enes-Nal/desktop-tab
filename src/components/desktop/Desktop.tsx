@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { useFsStore } from '@/store/fsStore';
 import { useWMStore } from '@/store/wmStore';
 import { DesktopIcon } from './DesktopIcon';
@@ -54,6 +54,24 @@ const getIconBox = (scale: number) => ({
   height: Math.round(ICON_H * scale),
 });
 
+const getIconBounds = (viewport: { width: number; height: number }, iconBox: { width: number; height: number }) => ({
+  maxX: Math.max(0, viewport.width - iconBox.width - MIN_ICON_EDGE_GAP),
+  maxY: Math.max(0, viewport.height - iconBox.height - MIN_ICON_EDGE_GAP),
+});
+
+const clampIconPosition = (
+  x: number,
+  y: number,
+  viewport: { width: number; height: number },
+  iconBox: { width: number; height: number },
+) => {
+  const bounds = getIconBounds(viewport, iconBox);
+  return {
+    x: Math.round(Math.max(0, Math.min(bounds.maxX, x))),
+    y: Math.round(Math.max(0, Math.min(bounds.maxY, y))),
+  };
+};
+
 export function Desktop() {
   const nodes = useFsStore(s => s.nodes);
   const selectedIds = useFsStore(s => s.selectedIds);
@@ -67,11 +85,12 @@ export function Desktop() {
   } = useFsStore();
 
   const activeWorkspace = settings.workspaces.find(w => w.id === settings.activeWorkspaceId);
-  const desktopNodes = nodes.filter(n =>
+  const activeWorkspaceNodeIds = activeWorkspace?.nodeIds;
+  const desktopNodes = useMemo(() => nodes.filter(n =>
     !n.deletedAt &&
     n.parentId === ROOT_DESKTOP &&
-    (!activeWorkspace || activeWorkspace.nodeIds.includes(n.id))
-  );
+    (!activeWorkspaceNodeIds || activeWorkspaceNodeIds.includes(n.id))
+  ), [activeWorkspaceNodeIds, nodes]);
 
   const [menu, setMenu] = useState<Menu>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -97,7 +116,11 @@ export function Desktop() {
   const selBoxRef = useRef<{ startX: number; startY: number; curX: number; curY: number; active: boolean } | null>(null);
   const [selBox, setSelBox] = useState<typeof selBoxRef.current>(null);
   const iconScale = getIconScale(viewport);
-  const iconBox = getIconBox(iconScale);
+  const iconBox = useMemo(() => getIconBox(iconScale), [iconScale]);
+  const desktopLayoutNodes = useMemo(() => desktopNodes.map(node => ({
+    ...node,
+    ...clampIconPosition(node.x, node.y, viewport, iconBox),
+  })), [desktopNodes, iconBox, viewport]);
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', settings.theme === 'dark');
@@ -185,13 +208,10 @@ export function Desktop() {
 
   useEffect(() => {
     if (!hydrated || desktopNodes.length === 0) return;
-    const maxX = Math.max(0, viewport.width - iconBox.width - MIN_ICON_EDGE_GAP);
-    const maxY = Math.max(0, viewport.height - iconBox.height - MIN_ICON_EDGE_GAP);
     const updates = desktopNodes
       .map(node => ({
         id: node.id,
-        x: Math.round(Math.max(0, Math.min(maxX, node.x))),
-        y: Math.round(Math.max(0, Math.min(maxY, node.y))),
+        ...clampIconPosition(node.x, node.y, viewport, iconBox),
       }))
       .filter(next => {
         const node = desktopNodes.find(item => item.id === next.id);
@@ -199,7 +219,7 @@ export function Desktop() {
       });
 
     if (updates.length) moveItems(updates);
-  }, [desktopNodes, hydrated, iconBox.height, iconBox.width, moveItems, viewport.height, viewport.width]);
+  }, [desktopNodes, hydrated, iconBox, moveItems, viewport]);
 
   const snap = useCallback((x: number, y: number) => {
     if (!settings.snapToGrid) return { x, y };
@@ -209,10 +229,9 @@ export function Desktop() {
     };
   }, [settings.snapToGrid]);
 
-  const clampPos = useCallback((x: number, y: number) => ({
-    x: Math.max(0, Math.min(viewport.width - iconBox.width - MIN_ICON_EDGE_GAP, x)),
-    y: Math.max(0, Math.min(viewport.height - iconBox.height - MIN_ICON_EDGE_GAP, y)),
-  }), [iconBox.height, iconBox.width, viewport.height, viewport.width]);
+  const clampPos = useCallback((x: number, y: number) => (
+    clampIconPosition(x, y, viewport, iconBox)
+  ), [iconBox, viewport]);
 
   const onIconMouseDown = (e: React.MouseEvent, id: string) => {
     if (e.button !== 0) return;
@@ -229,7 +248,9 @@ export function Desktop() {
     }
 
     const origin = new Map<string, { x: number; y: number }>();
-    nodes.forEach(b => { if (ids.includes(b.id)) origin.set(b.id, { x: b.x, y: b.y }); });
+    nodes.forEach(b => {
+      if (ids.includes(b.id)) origin.set(b.id, clampIconPosition(b.x, b.y, viewport, iconBox));
+    });
     drag.current = { ids, startX: e.clientX, startY: e.clientY, origin, moved: false };
   };
 
@@ -308,7 +329,7 @@ export function Desktop() {
         const maxX = Math.max(next.startX, next.curX);
         const minY = Math.min(next.startY, next.curY);
         const maxY = Math.max(next.startY, next.curY);
-        const ids = desktopNodes
+        const ids = desktopLayoutNodes
           .filter(b => b.x < maxX && b.x + iconBox.width > minX && b.y < maxY && b.y + iconBox.height > minY)
           .map(b => b.id);
         setSelected(ids);
@@ -355,7 +376,7 @@ export function Desktop() {
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
     };
-  }, [nodes, desktopNodes, dropTargetId, iconBox.height, iconBox.width, clampPos, moveItems, setSelected, snap, settings.snapToGrid, setItemParent, addFolder]);
+  }, [nodes, desktopLayoutNodes, dropTargetId, iconBox.height, iconBox.width, clampPos, moveItems, setSelected, snap, settings.snapToGrid, setItemParent, addFolder]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -616,7 +637,7 @@ export function Desktop() {
         className="absolute inset-x-0 top-0"
         style={{ bottom: TASKBAR_H }}
       >
-        {desktopNodes.map(node => (
+        {desktopLayoutNodes.map(node => (
           <DesktopIcon
             key={node.id}
             node={node}
